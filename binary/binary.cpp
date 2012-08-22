@@ -542,6 +542,8 @@ void Binary::M1M2data(binary_integrals_t* b) {
 					b0.m1 += s.rho() * h3;
 					b0.x += x * s.rho() * h3;
 					b0.xdot += s.V(x) * s.rho() * h3;
+					b0.xdot[0] -= Binary::Omega * x[1] * s.rho() * h3;
+					b0.xdot[1] += Binary::Omega * x[0] * s.rho() * h3;
 					b0.js1 += s.lz(x) * h3;
 					b0.I1 += (x[0] * x[0] + x[1] * x[1]) * s.rho() * h3;
 				} else if (lobe(i, j, k) == 2) {
@@ -549,6 +551,8 @@ void Binary::M1M2data(binary_integrals_t* b) {
 					b0.m2 += s.rho() * h3;
 					b0.x -= x * s.rho() * h3;
 					b0.xdot -= s.V(x) * s.rho() * h3;
+					b0.xdot[0] += Binary::Omega * x[1] * s.rho() * h3;
+					b0.xdot[1] -= Binary::Omega * x[0] * s.rho() * h3;
 					b0.js2 += s.lz(x) * h3;
 					b0.I2 += (x[0] * x[0] + x[1] * x[1]) * s.rho() * h3;
 				}
@@ -590,6 +594,7 @@ void Binary::M1M2data(binary_integrals_t* b) {
 		b->xdot /= (2.0 * b->q / pow(b->q + 1.0, 2)) * (b->m1 + b->m2);
 		b->a = sqrt((b->x).dot(b->x));
 		O = (b->x[0] * b->xdot[1] - b->x[1] * b->xdot[0]) / (b->a * b->a);
+		printf( "%e\n", O );
 		r1 = b->q / (1.0 + b->q) * b->a;
 		r2 = 1.0 / (1.0 + b->q) * b->a;
 		j1 = b->m1 * r1 * r1 * O;
