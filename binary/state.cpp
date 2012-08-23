@@ -370,8 +370,8 @@ void State::set_sz(Real r) {
 void State::to_prim(const _3Vec& x) {
 	(*this)[et_index] -= ek(x);
 	(*this)[sr_index] /= rho();
-	(*this)[lz_index] /= rho() * R(x);
-	(*this)[lz_index] -= R(x) * Binary::Omega;
+	(*this)[lz_index] /= rho() * R(x) * R(x);
+	(*this)[lz_index] -= Binary::Omega;
 	(*this)[sz_index] /= rho();
 	(*this)[pot_index] /= rho();
 }
@@ -380,8 +380,8 @@ void State::to_con(const _3Vec& x) {
 	(*this)[sz_index] *= rho();
 	(*this)[pot_index] *= rho();
 	(*this)[sr_index] *= rho();
-	(*this)[lz_index] += R(x) * Binary::Omega;
-	(*this)[lz_index] *= rho() * R(x);
+	(*this)[lz_index] += Binary::Omega;
+	(*this)[lz_index] *= rho() * R(x) * R(x);
 	(*this)[et_index] += ek(x);
 }
 
