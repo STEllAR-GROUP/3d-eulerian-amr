@@ -25,7 +25,8 @@ const char* State::field_name(int i) {
 	static char dstr[3];
 	dstr[2] = '\0';
 	dstr[0] = 'd';
-	assert(i >= 0);assert(i < STATE_NF);
+	assert(i >= 0);
+	assert(i < STATE_NF);
 	switch (i) {
 	case d_index:
 		return "d";
@@ -41,7 +42,7 @@ const char* State::field_name(int i) {
 	return "tau";
 }
 
-void State::enforce_outflow(const OctFace& f, const _3Vec& X) {
+void State::enforce_outflow(const _3Vec& X, const OctFace& f) {
 	switch (f) {
 	case XU:
 		if (vx() > 0.0) {
@@ -86,7 +87,7 @@ void State::floor(const _3Vec& X) {
 	(*this)[d_index] = max((*this)[d_index], rho_floor);
 	const Real ei0 = et() - ek();
 	if (ei0 > 0.1 * et()) {
-		(*this)[tau_index] = pow(max(ei0,ei_floor), 1.0 / gamma);
+		(*this)[tau_index] = pow(max(ei0, ei_floor), 1.0 / gamma);
 	}
 }
 
@@ -162,58 +163,56 @@ Real State::pg() const {
 }
 
 Real State::cs() const {
-	assert(rho() > 0.0);assert(pg() >= 0.0);
+	assert(rho() > 0.0);
+	assert(pg() >= 0.0);
 	return sqrt(gamma * pg() / rho());
 }
 
-Real State::max_abs_x_eigen(const _3Vec& X, const _3Vec& V) const {
-	return fabs(vx() - V[0]) + cs();
+Real State::max_abs_x_eigen(const _3Vec& X) const {
+	return fabs(vx()) + cs();
 }
 
-Real State::max_abs_y_eigen(const _3Vec& X, const _3Vec& V) const {
-	return fabs(vy() - V[1]) + cs();
+Real State::max_abs_y_eigen(const _3Vec& X) const {
+	return fabs(vy()) + cs();
 }
 
-Real State::max_abs_z_eigen(const _3Vec& X, const _3Vec& V) const {
-	return fabs(vz() - V[2]) + cs();
+Real State::max_abs_z_eigen(const _3Vec& X) const {
+	return fabs(vz()) + cs();
 }
 
-Vector<Real, STATE_NF> State::x_flux(const _3Vec& X, const _3Vec& V) const {
+Vector<Real, STATE_NF> State::x_flux(const _3Vec& X) const {
 	Vector<Real, STATE_NF> flux = 0.0;
-	Real v, v0, p;
+	Real v, p;
 	v = vx();
-	v0 = v - V[0];
 	p = pg();
 	for (int i = 0; i < STATE_NF; i++) {
-		flux[i] = (*this)[i] * v0;
+		flux[i] = (*this)[i] * v;
 	}
 	flux[sx_index] += p;
 	flux[et_index] += v * p;
 	return flux;
 }
 
-Vector<Real, STATE_NF> State::y_flux(const _3Vec& X, const _3Vec& V) const {
+Vector<Real, STATE_NF> State::y_flux(const _3Vec& X) const {
 	Vector<Real, STATE_NF> flux = 0.0;
-	Real v, v0, p;
+	Real v, p;
 	v = vy();
-	v0 = v - V[1];
 	p = pg();
 	for (int i = 0; i < STATE_NF; i++) {
-		flux[i] = (*this)[i] * v0;
+		flux[i] = (*this)[i] * v;
 	}
 	flux[sy_index] += p;
 	flux[et_index] += v * p;
 	return flux;
 }
 
-Vector<Real, STATE_NF> State::z_flux(const _3Vec& X, const _3Vec& V) const {
+Vector<Real, STATE_NF> State::z_flux(const _3Vec& X) const {
 	Vector<Real, STATE_NF> flux = 0.0;
-	Real v, v0, p;
+	Real v, p;
 	v = vz();
-	v0 = v - V[2];
 	p = pg();
 	for (int i = 0; i < STATE_NF; i++) {
-		flux[i] = (*this)[i] * v0;
+		flux[i] = (*this)[i] * v;
 	}
 	flux[sz_index] += p;
 	flux[et_index] += v * p;

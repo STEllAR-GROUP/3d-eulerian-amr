@@ -5,6 +5,9 @@
 //#define SCF_CODE
 
 #define CENTER_OF_MASS_CORRECTION
+#define DYNAMIC_OMEGA
+#define MIRROR_REFINE_Y
+
 
 #define NRHO 2
 #define MAX_POINTS (1024*1024)
@@ -41,7 +44,6 @@
 #define KL  KR
 #define KR 0.130821412355133
 
-#define DYNAMIC_OMEGA
 
 #define MAXDTINC           (1.25)
 #define GRID_CFL_FACTOR    0.3
@@ -50,8 +52,6 @@
 #else
 #define CHKPT_FREQ         (32)
 #endif
-
-//#define MIRROR_REFINE_X
 
 
 #define MAXINITDT          (1.0e-2)

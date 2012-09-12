@@ -34,13 +34,19 @@ public:
 	}
 	virtual void initialize() {
 	}
+	static bool low_order_variable(int i) {
+		return false;
+	}
+	static bool smooth_variable(int i) {
+		return false;
+	}
 	virtual Vector<Real, STATE_NF> source(const _3Vec& X) const;
-	virtual Real max_abs_x_eigen(const _3Vec& X, const _3Vec& V) const;
-	virtual Real max_abs_y_eigen(const _3Vec& X, const _3Vec& V) const;
-	virtual Real max_abs_z_eigen(const _3Vec& X, const _3Vec& V) const;
-	virtual Vector<Real, STATE_NF> x_flux(const _3Vec& X, const _3Vec& V) const;
-	virtual Vector<Real, STATE_NF> y_flux(const _3Vec& X, const _3Vec& V) const;
-	virtual Vector<Real, STATE_NF> z_flux(const _3Vec& X, const _3Vec& V) const;
+	virtual Real max_abs_x_eigen(const _3Vec& X) const;
+	virtual Real max_abs_y_eigen(const _3Vec& X) const;
+	virtual Real max_abs_z_eigen(const _3Vec& X) const;
+	virtual Vector<Real, STATE_NF> x_flux(const _3Vec& X) const;
+	virtual Vector<Real, STATE_NF> y_flux(const _3Vec& X) const;
+	virtual Vector<Real, STATE_NF> z_flux(const _3Vec& X) const;
 	virtual Real poisson_source() const;
 	virtual void to_prim(const _3Vec& X);
 	virtual void to_con(const _3Vec& X);
@@ -82,7 +88,7 @@ public:
 	void set_et(Real);
 	void set_tau(Real);
 	void reflect_on_z();
-	virtual void enforce_outflow(const OctFace&, const _3Vec&);
+	virtual void enforce_outflow(const _3Vec&,const OctFace&);
 };
 
 #endif /* EULER_STATE_H_ */

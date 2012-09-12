@@ -11,6 +11,12 @@ int GridNode::max_refine_level = 5;
 Real GridNode::min_refine_density = 1.0e-6;
 Real GridNode::refine_alpha = 1.0;
 
+Real GridNode::t_norm = 1.0;
+void GridNode::set_time_normal(Real t) {
+	t_norm = t;
+
+}
+
 void GridNode::set_origin(const _3Vec& O) {
 	Grid::set_origin(O);
 	for (int i = 0; i < OCT_NCHILD; i++) {
@@ -282,7 +288,12 @@ void GridNode::create_child(const ChildIndex& c) {
 	}
 	ptr->inject_from_parent(c);
 	//	ptr->enforce_boundaries();
-	assert( (ptr->get_sibling(XL)!= NULL));assert( (ptr->get_sibling(YL)!= NULL));assert( (ptr->get_sibling(ZL)!= NULL));assert( (ptr->get_sibling(XU)!= NULL));assert( (ptr->get_sibling(YU)!= NULL));assert( (ptr->get_sibling(ZU)!= NULL));
+	assert( (ptr->get_sibling(XL)!= NULL));
+	assert( (ptr->get_sibling(YL)!= NULL));
+	assert( (ptr->get_sibling(ZL)!= NULL));
+	assert( (ptr->get_sibling(XU)!= NULL));
+	assert( (ptr->get_sibling(YU)!= NULL));
+	assert( (ptr->get_sibling(ZU)!= NULL));
 }
 
 GridNode* GridNode::new_octnode() const {
@@ -1174,26 +1185,17 @@ int GridNode::get_zone_cnt() const {
 }
 
 int GridNode::nvar_output() const {
-	return 2 * STATE_NF;
+	return STATE_NF;
 }
 
 void GridNode::load_output(grid_output_t* go, int i, int j, int k) const {
 	for (int l = 0; l < STATE_NF; l++) {
 		go->ele[l][go->ei] = (*this)(i, j, k)[l];
 	}
-	for (int l = 0; l < STATE_NF; l++) {
-		go->ele[l][go->ei + STATE_NF] = this->differential(i, j, k)[l];
-	}
 }
 
 const char* GridNode::output_field_names(int i) const {
-	if (i < STATE_NF) {
-		return State::field_name(i);
-	} else {
-		static char str[256];
-		sprintf(str, "D_%s", State::field_name(i - STATE_NF));
-		return str;
-	}
+	return State::field_name(i);
 }
 
 void GridNode::output(grid_output_t* ptr) const {
@@ -1316,7 +1318,7 @@ void GridNode::output(const char* prefix, int counter) const {
 	int shapecnt[1];
 	int shapetype[1];
 	int nshapes = 1;
-	float ftime = float(get_time());
+	float ftime = float(get_time() / t_norm);
 	//double dtime = double(get_time());
 	const int nf = this->nvar_output();
 	sprintf(filename, "%s.%i.silo", prefix, counter);
@@ -1408,47 +1410,6 @@ Vector<State, 4> GridNode::state_sum() const {
 	 printf("%e %e %e\n", s0[0][1], s0[1][1] / s0[0][1], s0[2][1] / s0[0][1]);
 	 }*/
 	return s0;
-}
-
-Vector<Real, 4> GridNode::mass_sum(int frac) const {
-	const Real h3 = pow(get_dx(), 3);
-	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
-	Vector<Real, 4> a;
-	int k, j, i;
-	Real a0, ax, ay, az;
-	a0 = ax = ay = az = 0.0;
-#pragma omp parallel for schedule(OMP_SCHEDULE) reduction(+:a0,ax,ay,az) private(k,j,i)
-	for (int index = 0; index <= indexer.max_index(); index++) {
-		k = indexer.y(index);
-		j = indexer.x(index);
-		for (i = bw; i < GNX - bw; i++) {
-			if (!zone_is_refined(i, j, k)) {
-				a0 += (*this)(i, j, k).get_rho(frac) * h3;
-				ax += (*this)(i, j, k).get_rho(frac) * h3 * xc(i);
-				ay += (*this)(i, j, k).get_rho(frac) * h3 * yc(j);
-				az += (*this)(i, j, k).get_rho(frac) * h3 * zc(k);
-			}
-		}
-	}
-	a[0] = a0;
-	a[1] = ax;
-	a[2] = ay;
-#ifdef Z_REFLECT
-	a[3] = 0.0;
-#else
-	a[3] = az;
-#endif
-	for (int i = 0; i < OCT_NCHILD; i++) {
-		if (this->get_child(i) != NULL) {
-			a += static_cast<const GridNode*> (get_child(i))->mass_sum(frac);
-		}
-	}
-	if (get_level() == 0) {
-		a[1] /= a[0];
-		a[2] /= a[0];
-		a[3] /= a[0];
-	}
-	return a;
 }
 
 State GridNode::state_max() const {

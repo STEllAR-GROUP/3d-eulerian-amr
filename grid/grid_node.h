@@ -17,6 +17,7 @@ private:
 	bool refine[OCT_NCHILD];
 	int age;
 	static Real refine_alpha;
+	static Real t_norm;
 protected:
 	void clear_refine_flags();
 	void propagate_refine_flags_up();
@@ -29,6 +30,7 @@ protected:
 	virtual void load_output(grid_output_t* go, int, int, int) const;
 	virtual const char* output_field_names(int) const;
 public:
+	static void set_time_normal( Real );
 	static int max_refine_level;
 	static Real min_refine_density;
 	virtual void write(FILE*) const;
@@ -38,7 +40,6 @@ public:
 	void set_origin(const _3Vec& );
 	void debug() const;
 	void error_from_parent();
-	Vector<Real,4> mass_sum(int=-1) const;
 	Vector<State,4> state_sum() const;
 	State state_max() const;
 	State state_min() const;

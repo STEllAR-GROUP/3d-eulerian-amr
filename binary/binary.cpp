@@ -22,6 +22,47 @@ Real Binary::Omega0 = 0.0;
 Real Binary::l1x = 0.0;
 Real Binary::Omega = sqrt((M1 * (q + 1.0) / (a * a * a)));
 
+Vector<Real, 4> Binary::mass_sum(int frac) const {
+	const Real h3 = pow(get_dx(), 3);
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	Vector<Real, 4> a;
+	int k, j, i;
+	Real a0, ax, ay, az;
+	a0 = ax = ay = az = 0.0;
+#pragma omp parallel for schedule(OMP_SCHEDULE) reduction(+:a0,ax,ay,az) private(k,j,i)
+	for (int index = 0; index <= indexer.max_index(); index++) {
+		k = indexer.y(index);
+		j = indexer.x(index);
+		for (i = bw; i < GNX - bw; i++) {
+			if (!zone_is_refined(i, j, k)) {
+				a0 += (*this)(i, j, k).rho(frac) * h3;
+				ax += (*this)(i, j, k).rho(frac) * h3 * xc(i);
+				ay += (*this)(i, j, k).rho(frac) * h3 * yc(j);
+				az += (*this)(i, j, k).rho(frac) * h3 * zc(k);
+			}
+		}
+	}
+	a[0] = a0;
+	a[1] = ax;
+	a[2] = ay;
+#ifdef Z_REFLECT
+	a[3] = 0.0;
+#else
+	a[3] = az;
+#endif
+	for (int i = 0; i < OCT_NCHILD; i++) {
+		if (this->get_child(i) != NULL) {
+			a += static_cast<const Binary*> (get_child(i))->mass_sum(frac);
+		}
+	}
+	if (get_level() == 0) {
+		a[1] /= a[0];
+		a[2] /= a[0];
+		a[3] /= a[0];
+	}
+	return a;
+}
+
 void Binary::write(FILE* fp) const {
 	if (get_level() == 0) {
 		Real h;
@@ -47,7 +88,57 @@ void Binary::write(FILE* fp) const {
 }
 
 int Binary::nvar_output() const {
-	return STATE_NF + 3;
+	return STATE_NF + 2;
+}
+
+void Binary::output(grid_output_t* ptr) const {
+	for (int k = 0; k < GNX + 1; k++) {
+		for (int j = 0; j < GNX + 1; j++) {
+			for (int i = 0; i < GNX + 1; i++) {
+				Real x, y, z;
+				Real p;
+#ifdef SCF_CODE
+				p = 0.0;
+#else
+				p = Binary::phase;
+#endif
+				z = zf(k);
+				x = cos(p) * xf(i) - sin(p) * yf(j);
+				y = cos(p) * yf(j) + sin(p) * xf(i);
+				*(ptr->x) = x;
+				*(ptr->y) = y;
+				*(ptr->z) = z;
+				ptr->x++;
+				ptr->y++;
+				ptr->z++;
+			}
+		}
+	}
+	for (int k = bw; k < GNX - bw; k++) {
+		for (int j = bw; j < GNX - bw; j++) {
+			for (int i = bw; i < GNX - bw; i++) {
+				if (zone_is_refined(i, j, k)) {
+					continue;
+				}
+				(ptr->nodelist)[ptr->ni++] = (i + 0) + (GNX + 1) * ((j + 0) + (GNX + 1) * (k + 0)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 1) + (GNX + 1) * ((j + 0) + (GNX + 1) * (k + 0)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 1) + (GNX + 1) * ((j + 1) + (GNX + 1) * (k + 0)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 0) + (GNX + 1) * ((j + 1) + (GNX + 1) * (k + 0)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 0) + (GNX + 1) * ((j + 0) + (GNX + 1) * (k + 1)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 1) + (GNX + 1) * ((j + 0) + (GNX + 1) * (k + 1)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 1) + (GNX + 1) * ((j + 1) + (GNX + 1) * (k + 1)) + ptr->pi;
+				(ptr->nodelist)[ptr->ni++] = (i + 0) + (GNX + 1) * ((j + 1) + (GNX + 1) * (k + 1)) + ptr->pi;
+				this->load_output(ptr, i, j, k);
+				ptr->ei++;
+			}
+		}
+	}
+	ptr->pi += GRID_NNODES;
+	for (int i = 0; i < OCT_NCHILD; i++) {
+		if (this->get_child(i) != NULL) {
+			static_cast<const Binary*> (get_child(i))->output(ptr);
+		}
+	}
 }
 
 void Binary::load_output(grid_output_t* go, int i, int j, int k) const {
@@ -56,7 +147,6 @@ void Binary::load_output(grid_output_t* go, int i, int j, int k) const {
 	}
 	go->ele[STATE_NF + 0][go->ei] = phi(i - BW + 1, j - BW + 1, k - BW + 1);
 	go->ele[STATE_NF + 1][go->ei] = lobe(i, j, k);
-	go->ele[STATE_NF + 2][go->ei] = (*this)(i, j, k).lz(X(i, j, k)) - (*this)(i, j, k)[State::lz_index];
 }
 
 const char* Binary::output_field_names(int i) const {
@@ -107,7 +197,7 @@ void Binary::add_difs(Real a, Real b) {
 	int j, k, i, i0, k0, j0;
 	State s;
 	Real dsum, fx0, fy0, fz0, x, y;
-	const Real O = Binary::Omega;
+	const Real O = Binary::Omega0;
 	Real angular;
 	_3Vec gforce;
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(j,k,i,D,s,dsum,i0,j0,k0,gforce,x,y,angular)
@@ -164,8 +254,8 @@ Real Binary::next_omega(Real* f, Real *df) const {
 					d2 = d1;
 					d2 += (g(i0 + 1, j0, k0).enthalpy() - g(i0 - 1, j0, k0).enthalpy()) / dx / 2.0;
 					d2 += (phi(i + 1, j, k) - phi(i - 1, j, k)) / dx / 2.0;
-					*df += 2.0 * d1 / Binary::Omega * dx3 * g(i0, j0, k0).get_rho(1);
-					*f += d2 * dx3 * g(i0, j0, k0).get_rho(1);
+					*df += 2.0 * d1 / Binary::Omega * dx3 * g(i0, j0, k0).rho(1);
+					*f += d2 * dx3 * g(i0, j0, k0).rho(1);
 				}
 			}
 		}
@@ -241,8 +331,8 @@ Real Binary::domega() const {
 	}
 	if (get_level() == 0) {
 		Vector<Real, 4> m1, m2;
-		m1 = this->GridNode::mass_sum(0);
-		m2 = this->GridNode::mass_sum(1);
+		m1 = mass_sum(0);
+		m2 = mass_sum(1);
 		domega /= (m1[1] - m2[1]);
 	}
 	return domega;
@@ -262,7 +352,7 @@ Real Binary::sum_lz() const {
 			for (int k = 1; k < PNX - 1; k++) {
 				k0 = k + BW - 1;
 				if (!zone_is_refined(i0, j0, k0)) {
-					s += (*this)(i0, j0, k0).lz(this->X(i0, j0, k0)) * dx3;
+					s += (*this)(i0, j0, k0).lz() * dx3;
 				}
 			}
 		}
@@ -512,8 +602,10 @@ void Binary::M1M2data(binary_integrals_t* b) {
 		Vector<Real, 4> L1 = find_l1(mf1, mf2);
 		mark_lobes(L1[0], L1[1], L1[2], mf1[1], mf2[1], mf1[2], mf2[2]);
 		b->jc = b->mc = b->m1 = b->m2 = b->js1 = b->js2 = 0.0;
-		b->x = 0.0;
-		b->xdot = 0.0;
+		b->x1 = 0.0;
+		b->xdot1 = 0.0;
+		b->x2 = 0.0;
+		b->xdot2 = 0.0;
 		b->total_energy = 0.0;
 		b->kinetic = 0.0;
 		b->I1 = b->I2 = b->Ic = 0.0;
@@ -526,8 +618,10 @@ void Binary::M1M2data(binary_integrals_t* b) {
 	_3Vec x;
 	binary_integrals_t b0;
 	b0.mc = b0.jc = b0.m1 = b0.m2 = b0.js1 = b0.js2 = b0.total_energy = b0.kinetic = 0.0;
-	b0.x = 0.0;
-	b0.xdot = 0.0;
+	b0.x1 = 0.0;
+	b0.xdot1 = 0.0;
+	b0.x2 = 0.0;
+	b0.xdot2 = 0.0;
 	b0.I1 = b0.I2 = b0.Ic = b0.V1 = b0.V2 = 0.0;
 	int l;
 	for (int index = 0; index <= indexer.max_index(); index++) {
@@ -540,24 +634,24 @@ void Binary::M1M2data(binary_integrals_t* b) {
 				if (lobe(i, j, k) == 1) {
 					b0.V1 += h3;
 					b0.m1 += s.rho() * h3;
-					b0.x += x * s.rho() * h3;
-					b0.xdot += s.V(x) * s.rho() * h3;
-					b0.xdot[0] -= Binary::Omega * x[1] * s.rho() * h3;
-					b0.xdot[1] += Binary::Omega * x[0] * s.rho() * h3;
-					b0.js1 += s.lz(x) * h3;
+					b0.x1 += x * s.rho() * h3;
+					b0.xdot1 += s.V(x) * s.rho() * h3;
+					b0.xdot1[0] -= Binary::Omega * x[1] * s.rho() * h3;
+					b0.xdot1[1] += Binary::Omega * x[0] * s.rho() * h3;
+					b0.js1 += s.lz() * h3;
 					b0.I1 += (x[0] * x[0] + x[1] * x[1]) * s.rho() * h3;
 				} else if (lobe(i, j, k) == 2) {
 					b0.V2 += h3;
 					b0.m2 += s.rho() * h3;
-					b0.x -= x * s.rho() * h3;
-					b0.xdot -= s.V(x) * s.rho() * h3;
-					b0.xdot[0] += Binary::Omega * x[1] * s.rho() * h3;
-					b0.xdot[1] -= Binary::Omega * x[0] * s.rho() * h3;
-					b0.js2 += s.lz(x) * h3;
+					b0.x2 += x * s.rho() * h3;
+					b0.xdot2 += s.V(x) * s.rho() * h3;
+					b0.xdot2[0] -= Binary::Omega * x[1] * s.rho() * h3;
+					b0.xdot2[1] += Binary::Omega * x[0] * s.rho() * h3;
+					b0.js2 += s.lz() * h3;
 					b0.I2 += (x[0] * x[0] + x[1] * x[1]) * s.rho() * h3;
 				}
 				b0.mc += s.rho() * h3;
-				b0.jc += s.lz(x) * h3;
+				b0.jc += s.lz() * h3;
 				b0.total_energy += s.et_inertial(x) * h3 + s.pot_inertial(x) * h3 * 0.5;
 				b0.kinetic += s.et_inertial(x) * h3;
 				b0.Ic += (x[0] * x[0] + x[1] * x[1]) * s.rho() * h3;
@@ -580,30 +674,31 @@ void Binary::M1M2data(binary_integrals_t* b) {
 	b->js2 += b0.js2;
 	b->m1 += b0.m1;
 	b->m2 += b0.m2;
-	b->x += b0.x;
-	b->xdot += b0.xdot;
+	b->x1 += b0.x1;
+	b->xdot1 += b0.xdot1;
+	b->x2 += b0.x2;
+	b->xdot2 += b0.xdot2;
 	b->kinetic += b0.kinetic;
 	b->total_energy += b0.total_energy;
 	if (get_level() == 0) {
 #ifdef Z_REFLECT
-		b->x[2] = b->xdot[2] = 0.0;
+		b->x1[2] = b->xdot1[2] = 0.0;
+		b->x2[2] = b->xdot2[2] = 0.0;
 #endif
-		Real r1, r2, O, j1, j2;
+		Real j1, j2;
 		b->q = b->m2 / b->m1;
-		b->x /= (2.0 * b->q / pow(b->q + 1.0, 2)) * (b->m1 + b->m2);
-		b->xdot /= (2.0 * b->q / pow(b->q + 1.0, 2)) * (b->m1 + b->m2);
-		b->a = sqrt((b->x).dot(b->x));
-		O = (b->x[0] * b->xdot[1] - b->x[1] * b->xdot[0]) / (b->a * b->a);
-		printf( "%e\n", O );
-		r1 = b->q / (1.0 + b->q) * b->a;
-		r2 = 1.0 / (1.0 + b->q) * b->a;
-		j1 = b->m1 * r1 * r1 * O;
-		j2 = b->m2 * r2 * r2 * O;
+		b->x1 /= b->m1;
+		b->x2 /= b->m2;
+		b->xdot1 /= b->m1;
+		b->xdot2 /= b->m2;
+		b->a = sqrt((b->x1 - b->x2).dot(b->x1 - b->x2));
+		j1 = b->m1 * (b->x1[0] * b->xdot1[1] - b->x1[1] * b->xdot1[0]);
+		j2 = b->m2 * (b->x2[0] * b->xdot2[1] - b->x2[1] * b->xdot2[0]);
 		b->jorb = j1 + j2;
 		b->js1 -= j1;
 		b->js2 -= j2;
-		b->I1 -= b->m1 * r1 * r1;
-		b->I2 -= b->m2 * r2 * r2;
+		b->I1 -= b->m1 * b->x1.dot(b->x1);
+		b->I2 -= b->m2 * b->x2.dot(b->x2);
 	}
 }
 
@@ -619,8 +714,8 @@ void Binary::pot_to_grid() {
 		for (i = 1, i0 = BW; i < PNX - 1; i++, i0++) {
 			const Real d = (*this)(i0, j0, k0).rho();
 			const Real R2 = pxc(i) * pxc(i) + pyc(j) * pyc(j);
-			Real pot = d * (phi(i, j, k) - 0.5 * R2 * Binary::Omega * Binary::Omega);
-			(*this)(i0, j0, k0).set_pot(pot);
+			Real pot = d * (phi(i, j, k) - 0.5 * R2 * Binary::Omega0 * Binary::Omega0);
+			(*this)(i0, j0, k0)[State::pot_index] = pot;
 		}
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
@@ -647,7 +742,7 @@ void Binary::pot_from_grid() {
 		for (i = 1, i0 = BW; i < PNX - 1; i++, i0++) {
 			const Real d = (*this)(i0, j0, k0).rho();
 			const Real R2 = pxc(i) * pxc(i) + pyc(j) * pyc(j);
-			Real ph = ((*this)(i0, j0, k0).pot() / d + 0.5 * R2 * Binary::Omega * Binary::Omega);
+			Real ph = ((*this)(i0, j0, k0).pot() / d + 0.5 * R2 * Binary::Omega0 * Binary::Omega0);
 			phi(i, j, k) = ph;
 		}
 	}
@@ -678,7 +773,7 @@ void Binary::add_pot_et() {
 			const int k0 = k + BW - 1;
 			e = (*this)(i0, j0, k0).et();
 			e += (*this)(i0, j0, k0).pot() - 0.5 * phi(i, j, k) * (*this)(i0, j0, k0).rho();
-			(*this)(i0, j0, k0).set_et(e);
+			(*this)(i0, j0, k0)[State::et_index] = e;
 		}
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
@@ -706,7 +801,7 @@ void Binary::sub_pot_et() {
 			const int k0 = k + BW - 1;
 			e = (*this)(i0, j0, k0).et();
 			e -= (*this)(i0, j0, k0).pot() - 0.5 * phi(i, j, k) * (*this)(i0, j0, k0).rho();
-			(*this)(i0, j0, k0).set_et(e);
+			(*this)(i0, j0, k0)[State::et_index] = e;
 		}
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {

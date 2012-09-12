@@ -34,9 +34,10 @@ private:
 	virtual void inject_from_parent(ChildIndex);
 	Array3d<Real, GNX, GNX, GNX> lobe;
 public:
+	Vector<Real,4> mass_sum(int=-1) const;
 	struct binary_integrals_t {
 		Real m1, m2, mc, js1, js2, jorb, jc, a, q, total_energy, kinetic, I1, I2, Ic, V1, V2;
-		_3Vec x, xdot;
+		_3Vec x1, xdot1, x2, xdot2;
 	};
 	virtual const char* output_field_names(int) const;
 	virtual int nvar_output() const;
@@ -74,6 +75,7 @@ public:
 	virtual Real max_dt() const;
 	virtual void write(FILE*) const;
 	virtual void read(FILE*);
+	virtual void output(grid_output_t* ptr) const;
 };
 
 #endif /* BINARY_H_ */

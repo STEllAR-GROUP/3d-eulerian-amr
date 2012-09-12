@@ -3,10 +3,6 @@
 
 #define BINARY
 
-#ifdef SINGLE
-#include "./single/single_defs.h"
-#endif
-
 #ifdef BINARY
 #include "./binary/binary_defs.h"
 #endif

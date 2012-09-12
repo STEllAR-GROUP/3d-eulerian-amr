@@ -105,13 +105,6 @@ void HydroDriver::step_to_time(Real tmax) {
 	root->output("X", 0.0);
 	do {
 		Real start_time = omp_get_wtime();
-		Vector<Real, 4> m1;
-		Vector<Real, 4> m2;
-		m1 = root->mass_sum(0);
-		m2 = root->mass_sum(1);
-		FILE* fp = fopen("com.dat", "at");
-		fprintf(fp, "%e %e %e %e %e %e %e %e %e\n", get_time(), m1[0], m1[1], m1[2], m1[3], m2[0], m2[1], m2[2], m2[3]);
-		fclose(fp);
 		dt = root->max_dt();
 		if (get_time() == 0.0) {
 			dt = MAXINITDT * dt;

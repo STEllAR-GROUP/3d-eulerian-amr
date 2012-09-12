@@ -1,8 +1,6 @@
 #include <fenv.h>
 #include <stdio.h>
 #include "program.h"
-#include "single/single.h"
-#include "single/driver.h"
 #include "binary/binary_driver.h"
 #include "euler/hydro_driver.h"
 #include <stdlib.h>
