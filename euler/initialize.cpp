@@ -29,7 +29,7 @@ void initialize(GridNode* g) {
 	for (int k = 0; k < GNX; k++) {
 		for (int j = 0; j < GNX; j++) {
 			for (int i = 0; i < GNX; i++) {
-			  r = sqrt(g->xc(i) * g->xc(i) + g->yc(j) * g->yc(j) + g->zc(k) * g->zc(k));
+			  r = sqrt(g->xc(i) * g->xc(i) + g->yc(j) * g->yc(j));
 			  if ( (r_inner <= r) && (r_outer >= r) ) {
 			    U.set_rho( (0.5/kappa)*(C_1+G*M_c/r-0.5*pow((C_2/r),2.0) );
 			    U.set_et(ei0);
