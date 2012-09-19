@@ -1,1 +1,1 @@
-testing
+When running the executable, the user must specify the # of levels of refinement in the command line or else segfault.
