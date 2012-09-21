@@ -11,14 +11,14 @@ EXECUTABLE=amr
 all: $(SOURCES) $(EXECUTABLE)
 	
 $(EXECUTABLE): $(OBJECTS) 
-	$(CC) $(OBJECTS) -o $@ $(LDFLAGS) 
+	@mkdir -p build 
+	$(CC) $(OBJECTS) -o build/$@ $(LDFLAGS) 
 
 .cpp.o:
-	$(CC) $(CFLAGS) $< -o $@
+	@mkdir -p build 
+	$(CC) $(CFLAGS) build/$< -o build/$@
 
 clean: 
-	rm *.o
-	rm ./*/*.o
-	rm amr
-
+	rm -r build
+	mkdir -p build
 
