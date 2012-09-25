@@ -3,9 +3,7 @@
 #include "initialize.h"
 #include "indexer_2d.h"
 #include <math.h>
-extern "C" {
 #include "lane_emden.h"
-}
 #include "../oct_node/oct_node.h"
 #include "../grid/grid_node.h"
 #include "../binary/binary.h"
