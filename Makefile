@@ -14,7 +14,7 @@ ifeq ($(CC),icc)
 else 
     OMPFLAG=-fopenmp
     ifdef DEBUG
-        CXXFLAGS+=-O0 -ggdb -DDEBUG -fno-inline
+        CXXFLAGS+=-ggdb -DDEBUG
     else
         CXXFLAGS+=-O3 -march=native -DNDEBUG
     endif
@@ -24,7 +24,7 @@ ifdef AMR_MODULE
     CXXFLAGS+=-D$(AMR_MODULE)
 endif
 
-CXXFLAGS=-c -I. $(OMPFLAG) 
+CXXFLAGS+=-c -I. $(OMPFLAG) 
 LDFLAGS=$(OMPFLAG) -L/usr/local/lib -lsiloh5 -lstdc++
 
 SOURCES=assert.cpp \
