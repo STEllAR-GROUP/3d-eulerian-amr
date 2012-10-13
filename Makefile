@@ -4,8 +4,6 @@ ifdef CC
     endif
 endif
 
-$(shell 'echo $(CC)')
-
 ifeq ($(CC),icc)
     OMPFLAG=-openmp
     ifdef DEBUG
