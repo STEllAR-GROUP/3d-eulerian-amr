@@ -1,8 +1,10 @@
 ifdef CC
     ifneq ($(origin CC),'command line') 
-        CC=icc 
+        CC=icc
     endif
 endif
+
+$(shell 'echo $(CC)')
 
 ifeq ($(CC),icc)
     OMPFLAG=-openmp
@@ -25,7 +27,12 @@ ifdef AMR_MODULE
 endif
 
 CXXFLAGS+=-c -I. $(OMPFLAG) 
-LDFLAGS=$(OMPFLAG) -L/usr/local/lib -lsiloh5 -lstdc++
+
+ifdef USE_SILOH5
+    LDFLAGS=$(OMPFLAG) -L/usr/local/lib -lsiloh5 -lstdc++
+else
+    LDFLAGS=$(OMPFLAG) -L/usr/local/lib -lsilo -lstdc++
+endif
 
 SOURCES=assert.cpp \
         indexer_2d.cpp \
