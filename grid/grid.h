@@ -30,6 +30,11 @@ protected:
 	Array3d<Vector<Real, STATE_NF> , GNX, GNX, GNX> D;
 	Array3d<Vector<Real, STATE_NF> , GNX, GNX, GNX> F;
 	Array3d<State, GNX, GNX, GNX> U0;
+#ifdef SAVE_RECONSTRUCTIONS
+	Array3d<State, GNX, GNX, GNX> Uxf;
+	Array3d<State, GNX, GNX, GNX> Uyf;
+	Array3d<State, GNX, GNX, GNX> Uzf;
+#endif
 	void add_to_dif(const Vector<Real, STATE_NF>&, int, int, int);
 	void set_offset(const Vector<int, 3>&);
 	void set_flux(const Vector<Real, STATE_NF>&, int, int, int);
@@ -50,6 +55,12 @@ public:
 	virtual ~Grid();
 	virtual State operator()(int, int, int) const;
 	virtual State& operator()(int, int, int);
+	virtual State operator()(const Vector<int,3>& i) const {
+		return (*this)(i[0], i[1], i[2]);
+	}
+	virtual State& operator()(const Vector<int,3>& i){
+		return (*this)(i[0], i[1], i[2]);
+	}
 	Real get_time() const;
 	Real get_dx() const;
 	Real xc(int) const;

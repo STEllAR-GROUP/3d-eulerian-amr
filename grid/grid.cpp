@@ -146,12 +146,7 @@ void Grid::read(FILE* fp) {
 }
 
 const Vector<Real, STATE_NF> Grid::get_flux(int a, int b, int c) const {
-	assert(a >= bw );
-	assert(b >= bw );
-	assert(c >= bw );
-	assert( a <= GNX-bw );
-	assert( b <= GNX-bw );
-	assert( c <= GNX-bw );
+	assert(a >= bw ); assert(b >= bw ); assert(c >= bw ); assert( a <= GNX-bw ); assert( b <= GNX-bw ); assert( c <= GNX-bw );
 	return F(a, b, c);
 }
 
@@ -205,14 +200,14 @@ void Grid::restore() {
 
 void Grid::clear_difs() {
 	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
-	DFO = Vector<Real, STATE_NF> (0.0);
+	DFO = Vector<Real, STATE_NF>(0.0);
 	int k, j, i;
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j,i)
 	for (int index = 0; index <= indexer.max_index(); index++) {
 		k = indexer.y(index);
 		j = indexer.x(index);
 		for (i = bw; i < GNX - bw; i++) {
-			D(i, j, k) = Vector<Real, STATE_NF> (0.0);
+			D(i, j, k) = Vector<Real, STATE_NF>(0.0);
 		}
 	}
 }
@@ -237,9 +232,11 @@ void Grid::compute_x_flux() {
 			x = this->Xfx(i, j, k);
 			ql[i].to_con(x);
 			qr[i].to_con(x);
+#ifdef SAVE_RECONSTRUCTIONS
+			Uxf(i, j, k) = (ql[i] + qr[i]) * 0.5;
+#endif
 			a = max(ql[i].max_abs_x_eigen(x), qr[i].max_abs_x_eigen(x));
-			F(i, j, k) = ((ql[i].x_flux(x) + qr[i].x_flux(x)) - (qr[i] - ql[i])
-					* a) * 0.5;
+			F(i, j, k) = ((ql[i].x_flux(x) + qr[i].x_flux(x)) - (qr[i] - ql[i]) * a) * 0.5;
 
 		}
 	}
@@ -265,9 +262,11 @@ void Grid::compute_y_flux() {
 			x = this->Xfy(i, j, k);
 			ql[j].to_con(x);
 			qr[j].to_con(x);
+#ifdef SAVE_RECONSTRUCTIONS
+			Uyf(i, j, k) = (ql[j] + qr[j]) * 0.5;
+#endif
 			a = max(ql[j].max_abs_y_eigen(x), qr[j].max_abs_y_eigen(x));
-			F(i, j, k) = ((ql[j].y_flux(x) + qr[j].y_flux(x)) - (qr[j] - ql[j])
-					* a) * 0.5;
+			F(i, j, k) = ((ql[j].y_flux(x) + qr[j].y_flux(x)) - (qr[j] - ql[j]) * a) * 0.5;
 
 		}
 	}
@@ -293,9 +292,11 @@ void Grid::compute_z_flux() {
 			x = this->Xfz(i, j, k);
 			ql[k].to_con(x);
 			qr[k].to_con(x);
+#ifdef SAVE_RECONSTRUCTIONS
+			Uzf(i, j, k) = (ql[k] + qr[k]) * 0.5;
+#endif
 			a = max(ql[k].max_abs_z_eigen(x), qr[k].max_abs_z_eigen(x));
-			F(i, j, k) = ((ql[k].z_flux(x) + qr[k].z_flux(x)) - (qr[k] - ql[k])
-					* a) * 0.5;
+			F(i, j, k) = ((ql[k].z_flux(x) + qr[k].z_flux(x)) - (qr[k] - ql[k]) * a) * 0.5;
 		}
 	}
 }
@@ -383,7 +384,7 @@ void Grid::sum_z_flow_off() {
 	for (int index = 0; index <= indexer.max_index(); index++) {
 		k = indexer.y(index);
 		j = indexer.x(index);
-		tmp = (F(j, k, GNX - bw)) * h * h;// * 2.0;
+		tmp = (F(j, k, GNX - bw)) * h * h; // * 2.0;
 #pragma omp critical
 		DFO += tmp;
 	}
@@ -411,8 +412,7 @@ void Grid::add_difs(Real dt, Real beta) {
 		j = indexer.x(index);
 		for (i = bw; i < GNX - bw; i++) {
 			D(i, j, k) += U(i, j, k).source(this->X(i, j, k));
-			U(i, j, k) = (U(i, j, k) + D(i, j, k) * dt) * beta + U0(i, j, k)
-					* (1.0 - beta);
+			U(i, j, k) = (U(i, j, k) + D(i, j, k) * dt) * beta + U0(i, j, k) * (1.0 - beta);
 			U(i, j, k).floor(this->X(i, j, k));
 		}
 	}
@@ -442,8 +442,7 @@ Real Grid::max_dt() const {
 			v = this->Vfx(i, j, k);
 			ql[i].to_con(x);
 			qr[i].to_con(x);
-			this_dtinv = max(this_dtinv, ql[i].max_abs_x_eigen(x),
-					qr[i].max_abs_x_eigen(x));
+			this_dtinv = max(this_dtinv, ql[i].max_abs_x_eigen(x), qr[i].max_abs_x_eigen(x));
 		}
 		for (i = 0; i < GNX; i++) {
 			q0[i] = U(j, i, k);
@@ -455,8 +454,7 @@ Real Grid::max_dt() const {
 			x = this->Xfy(j, i, k);
 			ql[i].to_con(x);
 			qr[i].to_con(x);
-			this_dtinv = max(this_dtinv, ql[i].max_abs_y_eigen(x),
-					qr[i].max_abs_y_eigen(x));
+			this_dtinv = max(this_dtinv, ql[i].max_abs_y_eigen(x), qr[i].max_abs_y_eigen(x));
 		}
 		for (i = 0; i < GNX; i++) {
 			q0[i] = U(j, k, i);
@@ -468,8 +466,7 @@ Real Grid::max_dt() const {
 			x = this->Xfz(j, k, i);
 			ql[i].to_con(x);
 			qr[i].to_con(x);
-			this_dtinv = max(this_dtinv, ql[i].max_abs_z_eigen(x),
-					qr[i].max_abs_z_eigen(x));
+			this_dtinv = max(this_dtinv, ql[i].max_abs_z_eigen(x), qr[i].max_abs_z_eigen(x));
 		}
 #pragma omp critical
 		dtinv = max(this_dtinv, dtinv);
@@ -486,13 +483,13 @@ Real Grid::max_dt() const {
 }
 
 Grid::Grid() :
-	GridInterface() {
+		GridInterface() {
 	offset = 0;
 	h = h0;
 	time = 0.0;
-	FO0 = Vector<Real, STATE_NF> (0.0);
-	FO = Vector<Real, STATE_NF> (0.0);
-	DFO = Vector<Real, STATE_NF> (0.0);
+	FO0 = Vector<Real, STATE_NF>(0.0);
+	FO = Vector<Real, STATE_NF>(0.0);
+	DFO = Vector<Real, STATE_NF>(0.0);
 	origin = 0.0;
 }
 
