@@ -2,21 +2,23 @@
 #include "indexer_2d_by2.h"
 #include "indexer_2d.h"
 #include <omp.h>
+#include <math.h>
+#include <stdlib.h>
 
-#define RELAX_RESID 0.1
+#define RELAX_RESID 0.5
 #define VDOWN_RESID 1.0
-#define VUP_RESID 0.01
+#define VUP_RESID 0.05
 
-const int interp_c[64] = { 0, 0, 0, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, -1, 11, 11, -1, -1, 11,
-		11, -1, 0, -1, -1, 0, 0, -1, -1, 0, -1, 11, 11, -1, -1, 11, 11, -1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0,
-		-1, -1, 0, 0, 0, 0, 0 };
+const int interp_c[64] = { 0, 0, 0, 0, 0, -1, -1, 0, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, -1, 11, 11, -1, -1, 11, 11,
+		-1, 0, -1, -1, 0, 0, -1, -1, 0, -1, 11, 11, -1, -1, 11, 11, -1, 0, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 0, -1,
+		-1, 0, 0, 0, 0, 0 };
 const Real interp_c0 = 64.0;
 
 void Poisson::vcycle_coarse_correction(int level) {
 	if (get_level() == level) {
 		if (get_level() > 0) {
 			ChildIndex c = get_index();
-			const Poisson* p = static_cast<const Poisson*> (get_parent());
+			const Poisson* p = static_cast<const Poisson*>(get_parent());
 			const Indexer2d_by2 indexer(1, PNX - 2, 1, PNX - 2);
 			int i, j, k, i0, j0, k0;
 			Real a, dx, dy, dz;
@@ -42,7 +44,7 @@ void Poisson::vcycle_coarse_correction(int level) {
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (this->get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->vcycle_coarse_correction(level);
+				static_cast<Poisson*>(get_child(i))->vcycle_coarse_correction(level);
 			}
 		}
 	}
@@ -81,6 +83,8 @@ void Poisson::vcycle0() {
 	}
 }
 
+ double cudaRelax(Array3d<double, PNX, PNX, PNX>* dphi, Array3d<double, PNX, PNX, PNX>* dphi1);
+
 Real Poisson::vcycle_relax(int level) {
 	Array3d<Real, PNX, PNX, PNX> tmp0;
 	Real resid = 0.0;
@@ -88,10 +92,11 @@ Real Poisson::vcycle_relax(int level) {
 		bool first_pass = true;
 		Real resid0;
 		const Indexer2d indexer(1, PNX - 2, 1, PNX - 2);
-		int i, j, k;
+		int i, j, k, iters;
+		iters = 0;
 		do {
 			resid = 0.0;
-#pragma omp parallel for schedule(OMP_SCHEDULE) collapse(2)
+#pragma omp parallel for collapse(2)
 			for (int k = 1; k < PNX - 1; k++) {
 				for (int j = 1; j < PNX - 1; j++) {
 					for (int i = 1; i < PNX - 1; i++) {
@@ -99,7 +104,7 @@ Real Poisson::vcycle_relax(int level) {
 					}
 				}
 			}
-#pragma omp parallel for schedule(OMP_SCHEDULE) collapse(2) reduction(+:resid)
+#pragma omp parallel for collapse(2) reduction(+:resid)
 			for (int k = 1; k < PNX - 1; k++) {
 				for (int j = 1; j < PNX - 1; j++) {
 					for (int i = 1; i < PNX - 1; i++) {
@@ -112,11 +117,12 @@ Real Poisson::vcycle_relax(int level) {
 				resid0 = resid;
 				first_pass = false;
 			}
-		} while (resid / resid0 > RELAX_RESID);
+			iters++;
+		} while (resid / resid0 > RELAX_RESID && iters < 16);
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (this->get_child(i) != NULL) {
-				resid += static_cast<Poisson*> (get_child(i))->vcycle_relax(level);
+				resid += static_cast<Poisson*>(get_child(i))->vcycle_relax(level);
 			}
 		}
 	}
@@ -125,7 +131,7 @@ Real Poisson::vcycle_relax(int level) {
 
 void Poisson::inject_from_parent(ChildIndex c) {
 	GridNode::inject_from_parent(c);
-	const Poisson* p = static_cast<const Poisson*> (get_parent());
+	const Poisson* p = static_cast<const Poisson*>(get_parent());
 	const Indexer2d_by2 indexer(1, PNX - 2, 1, PNX - 2);
 	Real u;
 	int k, j, k0, j0, i, i0;
@@ -170,7 +176,7 @@ void Poisson::store_phi() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->store_phi();
+			static_cast<Poisson*>(get_child(i))->store_phi();
 		}
 	}
 }
@@ -188,7 +194,7 @@ void Poisson::restore_phi() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->restore_phi();
+			static_cast<Poisson*>(get_child(i))->restore_phi();
 		}
 	}
 }
@@ -209,7 +215,7 @@ void Poisson::restore_half_phi() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->restore_half_phi();
+			static_cast<Poisson*>(get_child(i))->restore_half_phi();
 		}
 	}
 }
@@ -230,7 +236,7 @@ void Poisson::compute_forces() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->compute_forces();
+			static_cast<Poisson*>(get_child(i))->compute_forces();
 		}
 	}
 	if (get_level() == 0) {
@@ -252,19 +258,19 @@ void Poisson::adjust_x_dphi() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(0, cj, ck);
 				if (l == 0) {
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					ci.set_x(1);
-					child_l = static_cast<const Poisson*> (get_sibling(XL)->get_child(ci));
+					child_l = static_cast<const Poisson*>(get_sibling(XL)->get_child(ci));
 					i0 = 1;
 				} else if (l == 1) {
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					ci.set_x(1);
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const Poisson*> (get_sibling(XU)->get_child(ci));
+					child_r = static_cast<const Poisson*>(get_sibling(XU)->get_child(ci));
 					ci.set_x(1);
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX - 1;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -318,19 +324,19 @@ void Poisson::adjust_y_dphi() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(cj, 0, ck);
 				if (l == 0) {
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					ci.set_y(1);
-					child_l = static_cast<const Poisson*> (get_sibling(YL)->get_child(ci));
+					child_l = static_cast<const Poisson*>(get_sibling(YL)->get_child(ci));
 					i0 = 1;
 				} else if (l == 1) {
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					ci.set_y(1);
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const Poisson*> (get_sibling(YU)->get_child(ci));
+					child_r = static_cast<const Poisson*>(get_sibling(YU)->get_child(ci));
 					ci.set_y(1);
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX - 1;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -383,19 +389,19 @@ void Poisson::adjust_z_dphi() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(cj, ck, 0);
 				if (l == 0) {
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					ci.set_z(1);
-					child_l = static_cast<const Poisson*> (get_sibling(ZL)->get_child(ci));
+					child_l = static_cast<const Poisson*>(get_sibling(ZL)->get_child(ci));
 					i0 = 1;
 				} else if (l == 1) {
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					ci.set_z(1);
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const Poisson*> (get_sibling(ZU)->get_child(ci));
+					child_r = static_cast<const Poisson*>(get_sibling(ZU)->get_child(ci));
 					ci.set_z(1);
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX - 1;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -445,7 +451,7 @@ void Poisson::adjust_x_force() {
 
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->adjust_x_force();
+			static_cast<Poisson*>(get_child(i))->adjust_x_force();
 		}
 	}
 
@@ -454,19 +460,19 @@ void Poisson::adjust_x_force() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(0, cj, ck);
 				if (l == 0) {
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					ci.set_x(1);
-					child_l = static_cast<const Poisson*> (get_sibling(XL)->get_child(ci));
+					child_l = static_cast<const Poisson*>(get_sibling(XL)->get_child(ci));
 					i0 = 1;
 				} else if (l == 1) {
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					ci.set_x(1);
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const Poisson*> (get_sibling(XU)->get_child(ci));
+					child_r = static_cast<const Poisson*>(get_sibling(XU)->get_child(ci));
 					ci.set_x(1);
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX - 1;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -509,7 +515,7 @@ void Poisson::adjust_y_force() {
 
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->adjust_y_force();
+			static_cast<Poisson*>(get_child(i))->adjust_y_force();
 		}
 	}
 
@@ -518,19 +524,19 @@ void Poisson::adjust_y_force() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(cj, 0, ck);
 				if (l == 0) {
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					ci.set_y(1);
-					child_l = static_cast<const Poisson*> (get_sibling(YL)->get_child(ci));
+					child_l = static_cast<const Poisson*>(get_sibling(YL)->get_child(ci));
 					i0 = 1;
 				} else if (l == 1) {
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					ci.set_y(1);
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const Poisson*> (get_sibling(YU)->get_child(ci));
+					child_r = static_cast<const Poisson*>(get_sibling(YU)->get_child(ci));
 					ci.set_y(1);
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX - 1;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -573,7 +579,7 @@ void Poisson::adjust_z_force() {
 
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->adjust_z_force();
+			static_cast<Poisson*>(get_child(i))->adjust_z_force();
 		}
 	}
 
@@ -582,19 +588,19 @@ void Poisson::adjust_z_force() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(cj, ck, 0);
 				if (l == 0) {
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					ci.set_z(1);
-					child_l = static_cast<const Poisson*> (get_sibling(ZL)->get_child(ci));
+					child_l = static_cast<const Poisson*>(get_sibling(ZL)->get_child(ci));
 					i0 = 1;
 				} else if (l == 1) {
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					ci.set_z(1);
-					child_r = static_cast<const Poisson*> (get_child(ci));
+					child_r = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const Poisson*> (get_sibling(ZU)->get_child(ci));
+					child_r = static_cast<const Poisson*>(get_sibling(ZU)->get_child(ci));
 					ci.set_z(1);
-					child_l = static_cast<const Poisson*> (get_child(ci));
+					child_l = static_cast<const Poisson*>(get_child(ci));
 					i0 = PNX - 1;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -656,14 +662,14 @@ Real Poisson::solution_error() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			sum += static_cast<Poisson*> (get_child(i))->solution_error();
+			sum += static_cast<Poisson*>(get_child(i))->solution_error();
 		}
 	}
 	return sum;
 }
 
 Poisson::Poisson() :
-	GridNode(), PoissonInterface() {
+		GridNode(), PoissonInterface() {
 	const Indexer2d indexer(0, PNX - 1, 0, PNX - 1);
 	int i, j, k;
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(i,j,k)
@@ -702,14 +708,14 @@ void Poisson::phi_from_children() {
 
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->phi_from_children();
+			static_cast<Poisson*>(get_child(i))->phi_from_children();
 		}
 	}
 
 	ChildIndex c;
 	Poisson* child;
 	for (c = 0; c < OCT_NCHILD; c++) {
-		child = static_cast<Poisson*> (get_child(c));
+		child = static_cast<Poisson*>(get_child(c));
 		const Indexer2d_by2 indexer(1, PNX - 2, 1, PNX - 2);
 		int k, j, k0, j0, i, i0;
 		int n, o, p, ii;
@@ -749,27 +755,27 @@ void Poisson::enforce_phi_boundaries(int l) {
 		for (int index = 0; index <= indexer.max_index(); index++) {
 			j = indexer.x(index);
 			k = indexer.y(index);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(XL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(XL));
 			phi(0, j, k) = sib->get_phi(PNX - 2, j, k);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(XU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(XU));
 			phi(PNX - 1, j, k) = sib->get_phi(1, j, k);
 			i = indexer.x(index);
 			k = indexer.y(index);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(YL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(YL));
 			phi(i, 0, k) = sib->get_phi(i, PNX - 2, k);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(YU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(YU));
 			phi(i, PNX - 1, k) = sib->get_phi(i, 1, k);
 			i = indexer.x(index);
 			j = indexer.y(index);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZL));
 			phi(i, j, 0) = sib->get_phi(i, j, PNX - 2);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZU));
 			phi(i, j, PNX - 1) = sib->get_phi(i, j, 1);
 		}
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->enforce_phi_boundaries(l);
+				static_cast<Poisson*>(get_child(i))->enforce_phi_boundaries(l);
 			}
 		}
 	}
@@ -785,42 +791,42 @@ void Poisson::enforce_phi_boundaries_edge(int l) {
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(sib)
 		for (int k = 1; k < PNX - 1; k++) {
 			if (is_phys_bound(XL) || is_phys_bound(XU)) {
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(XL));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(XL));
 				phi(0, 0, k) = sib->get_phi(PNX - 2, 0, k);
 				phi(0, PNX - 1, k) = sib->get_phi(PNX - 2, PNX - 1, k);
 				phi(0, k, 0) = sib->get_phi(PNX - 2, k, 0);
 				phi(0, k, PNX - 1) = sib->get_phi(PNX - 2, k, PNX - 1);
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(XU));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(XU));
 				phi(PNX - 1, 0, k) = sib->get_phi(1, 0, k);
 				phi(PNX - 1, PNX - 1, k) = sib->get_phi(1, PNX - 1, k);
 				phi(PNX - 1, k, 0) = sib->get_phi(1, k, 0);
 				phi(PNX - 1, k, PNX - 1) = sib->get_phi(1, k, PNX - 1);
 			} else {
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(YL));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(YL));
 				phi(0, 0, k) = sib->get_phi(0, PNX - 2, k);
 				phi(PNX - 1, 0, k) = sib->get_phi(PNX - 1, PNX - 2, k);
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(YU));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(YU));
 				phi(0, PNX - 1, k) = sib->get_phi(0, 1, k);
 				phi(PNX - 1, PNX - 1, k) = sib->get_phi(PNX - 1, 1, k);
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZL));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZL));
 				phi(0, k, 0) = sib->get_phi(0, k, PNX - 2);
 				phi(PNX - 1, k, 0) = sib->get_phi(PNX - 1, k, PNX - 2);
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZU));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZU));
 				phi(0, k, PNX - 1) = sib->get_phi(0, k, 1);
 				phi(PNX - 1, k, PNX - 1) = sib->get_phi(PNX - 1, k, 1);
 			}
 			if (is_phys_bound(YL) || is_phys_bound(YU)) {
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(YL));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(YL));
 				phi(k, 0, 0) = sib->get_phi(k, PNX - 2, 0);
 				phi(k, 0, PNX - 1) = sib->get_phi(k, PNX - 2, PNX - 1);
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(YU));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(YU));
 				phi(k, PNX - 1, 0) = sib->get_phi(k, 1, 0);
 				phi(k, PNX - 1, PNX - 1) = sib->get_phi(k, 1, PNX - 1);
 			} else {
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZL));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZL));
 				phi(k, 0, 0) = sib->get_phi(k, 0, PNX - 2);
 				phi(k, PNX - 1, 0) = sib->get_phi(k, PNX - 1, PNX - 2);
-				sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZU));
+				sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZU));
 				phi(k, 0, PNX - 1) = sib->get_phi(k, 0, 1);
 				phi(k, PNX - 1, PNX - 1) = sib->get_phi(k, PNX - 1, 1);
 			}
@@ -829,7 +835,7 @@ void Poisson::enforce_phi_boundaries_edge(int l) {
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->enforce_phi_boundaries_edge(l);
+				static_cast<Poisson*>(get_child(i))->enforce_phi_boundaries_edge(l);
 			}
 		}
 	}
@@ -839,34 +845,34 @@ void Poisson::enforce_phi_boundaries_vertex(int l) {
 	if (get_level() == l) {
 		const PoissonInterface* sib;
 		if (is_phys_bound(XL) || is_phys_bound(XU)) {
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(XL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(XL));
 			phi(0, 0, 0) = sib->get_phi(PNX - 2, 0, 0);
 			phi(0, PNX - 1, 0) = sib->get_phi(PNX - 2, PNX - 1, 0);
 			phi(0, 0, PNX - 1) = sib->get_phi(PNX - 2, 0, PNX - 1);
 			phi(0, PNX - 1, PNX - 1) = sib->get_phi(PNX - 2, PNX - 1, PNX - 1);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(XU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(XU));
 			phi(PNX - 1, 0, 0) = sib->get_phi(1, 0, 0);
 			phi(PNX - 1, PNX - 1, 0) = sib->get_phi(1, PNX - 1, 0);
 			phi(PNX - 1, 0, PNX - 1) = sib->get_phi(1, 0, PNX - 1);
 			phi(PNX - 1, PNX - 1, PNX - 1) = sib->get_phi(1, PNX - 1, PNX - 1);
 		} else if (is_phys_bound(YL) || is_phys_bound(YU)) {
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(YL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(YL));
 			phi(0, 0, 0) = sib->get_phi(0, PNX - 2, 0);
 			phi(PNX - 1, 0, 0) = sib->get_phi(PNX - 1, PNX - 2, 0);
 			phi(0, 0, PNX - 1) = sib->get_phi(0, PNX - 2, PNX - 1);
 			phi(PNX - 1, 0, PNX - 1) = sib->get_phi(PNX - 1, PNX - 2, PNX - 1);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(YU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(YU));
 			phi(0, PNX - 1, 0) = sib->get_phi(0, 1, 0);
 			phi(PNX - 1, PNX - 1, 0) = sib->get_phi(PNX - 1, 1, 0);
 			phi(0, PNX - 1, PNX - 1) = sib->get_phi(0, 1, PNX - 1);
 			phi(PNX - 1, PNX - 1, PNX - 1) = sib->get_phi(PNX - 1, 1, PNX - 1);
 		} else {
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZL));
 			phi(0, 0, 0) = sib->get_phi(0, 0, PNX - 2);
 			phi(0, PNX - 1, 0) = sib->get_phi(0, PNX - 1, PNX - 2);
 			phi(PNX - 1, 0, 0) = sib->get_phi(PNX - 1, 0, PNX - 2);
 			phi(PNX - 1, PNX - 1, 0) = sib->get_phi(PNX - 1, PNX - 1, PNX - 2);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZU));
 			phi(0, 0, PNX - 1) = sib->get_phi(0, 0, 1);
 			phi(0, PNX - 1, PNX - 1) = sib->get_phi(0, PNX - 1, 1);
 			phi(PNX - 1, 0, PNX - 1) = sib->get_phi(PNX - 1, 0, 1);
@@ -875,7 +881,7 @@ void Poisson::enforce_phi_boundaries_vertex(int l) {
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->enforce_phi_boundaries_vertex(l);
+				static_cast<Poisson*>(get_child(i))->enforce_phi_boundaries_vertex(l);
 			}
 		}
 	}
@@ -890,33 +896,33 @@ void Poisson::enforce_dphi_boundaries(int l) {
 		for (int index = 0; index <= indexer.max_index(); index++) {
 			j = indexer.x(index);
 			k = indexer.y(index);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(XL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(XL));
 			assert(sib!=NULL);
 			dphi(0, j, k) = sib->get_dphi(PNX - 2, j, k);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(XU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(XU));
 			assert(sib!=NULL);
 			dphi(PNX - 1, j, k) = sib->get_dphi(1, j, k);
 			i = indexer.x(index);
 			k = indexer.y(index);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(YL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(YL));
 			assert(sib!=NULL);
 			dphi(i, 0, k) = sib->get_dphi(i, PNX - 2, k);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(YU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(YU));
 			assert(sib!=NULL);
 			dphi(i, PNX - 1, k) = sib->get_dphi(i, 1, k);
 			i = indexer.x(index);
 			j = indexer.y(index);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZL));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZL));
 			assert(sib!=NULL);
 			dphi(i, j, 0) = sib->get_dphi(i, j, PNX - 2);
-			sib = dynamic_cast<const PoissonInterface*> (get_sibling(ZU));
+			sib = dynamic_cast<const PoissonInterface*>(get_sibling(ZU));
 			assert(sib!=NULL);
 			dphi(i, j, PNX - 1) = sib->get_dphi(i, j, 1);
 		}
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->enforce_dphi_boundaries(l);
+				static_cast<Poisson*>(get_child(i))->enforce_dphi_boundaries(l);
 			}
 		}
 	}
@@ -936,7 +942,7 @@ void Poisson::init_vcycle() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->init_vcycle();
+			static_cast<Poisson*>(get_child(i))->init_vcycle();
 		}
 	}
 }
@@ -954,7 +960,7 @@ void Poisson::set_source() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<Poisson*> (get_child(i))->set_source();
+			static_cast<Poisson*>(get_child(i))->set_source();
 		}
 	}
 }
@@ -988,7 +994,7 @@ void Poisson::vcycle_down(int level) {
 		const Indexer2d_by2 indexer(1, PNX - 2, 1, PNX - 2);
 		int k, j, i, k0, j0, i0, i0min, i0max;
 		for (c = 0; c < OCT_NCHILD; c++) {
-			child = static_cast<Poisson*> (get_child(c));
+			child = static_cast<Poisson*>(get_child(c));
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j,i,k0,j0,i0,i0min,i0max)
 			for (int index = 0; index <= indexer.max_index(); index++) {
 				k = indexer.y(index);
@@ -1014,7 +1020,7 @@ void Poisson::vcycle_down(int level) {
 		adjust_y_dphi();
 		adjust_z_dphi();
 		for (c = 0; c < OCT_NCHILD; c++) {
-			child = static_cast<Poisson*> (get_child(c));
+			child = static_cast<Poisson*>(get_child(c));
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j,k0,j0,i0,i0min,i0max)
 			for (int index = 0; index <= indexer.max_index(); index++) {
 				k = indexer.y(index);
@@ -1033,7 +1039,7 @@ void Poisson::vcycle_down(int level) {
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (this->get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->vcycle_down(level);
+				static_cast<Poisson*>(get_child(i))->vcycle_down(level);
 			}
 		}
 	}
@@ -1054,7 +1060,7 @@ void Poisson::vcycle_retire_dphi(int level) {
 	} else {
 		for (i = 0; i < OCT_NCHILD; i++) {
 			if (this->get_child(i) != NULL) {
-				static_cast<Poisson*> (get_child(i))->vcycle_retire_dphi(level);
+				static_cast<Poisson*>(get_child(i))->vcycle_retire_dphi(level);
 			}
 		}
 	}

@@ -4,14 +4,11 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <time.h>
-
+#include <math.h>
 #include "initialize.h"
-#include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 #include "binary.h"
 #include "../state.h"
-#include <omp.h>
 
 void BinaryDriver::set_output_frequency_by_time(Real t) {
 	int_output_freq = -1;
@@ -25,12 +22,12 @@ void BinaryDriver::reset_time() {
 }
 
 void BinaryDriver::set_verbosity(int a) {
-	assert( a >= 0 );
+	assert( a >= 0);
 	verbosity = a;
 }
 
 void BinaryDriver::set_output_frequency_by_step(int a) {
-	assert( a >= 1 );
+	assert( a >= 1);
 	int_output_freq = a;
 }
 
@@ -73,17 +70,30 @@ void BinaryDriver::step_to_time(Real tmax) {
 			dt = min(root->max_dt(), MAXINITDT);
 			step_cnt = 0;
 			iters++;
-		}while (root->max_level() < GridNode::max_refine_level || iters <= 2);
+			if (iters >= GridNode::max_refine_level) {
+				break;
+			}
+		} while (root->max_level() < GridNode::max_refine_level || iters <= 2);
 #else
+#ifndef READ_SILO
 		FILE* fp = fopen(READ_FROM_FILE, "rb");
 		assert(fp);
 		root->read(fp);
 		fclose(fp);
+#else
+		static_cast<Binary*>(root)->input();
+		root->GridNode::output("Y", 0);
+		root->enforce_boundaries();
+		root->pot_from_grid();
+#endif
+#ifdef ZTWD
+		Binary::set_units();
+#endif
+
 #endif
 		printf("%e\n", Binary::Omega);
 #ifndef SCF_CODE
-		this->set_output_frequency_by_time(
-				2.0 * M_PI / Binary::Omega0 / Real(FRAME_RATE));
+		this->set_output_frequency_by_time(2.0 * M_PI / Binary::Omega0 / Real(FRAME_RATE));
 #endif
 		ostep_cnt = int(root->get_time() / time_output_freq);
 		root->pot_from_grid();
@@ -93,7 +103,12 @@ void BinaryDriver::step_to_time(Real tmax) {
 	tmax *= 2.0 * M_PI / Binary::Omega0;
 	tmax += get_time();
 #ifdef SCF_CODE
-	tmax = 1.0 + 100;
+	tmax = 1.0 + 1000;
+#ifdef ZTWD
+	Binary::K1 /= 1.6;
+	Binary::K2 /= 1.6;
+	printf("%e %e\n", Binary::K1, Binary::K2);
+#endif
 #endif
 	GridNode::set_time_normal(2.0 * M_PI / Binary::Omega0);
 	do {
@@ -114,10 +129,7 @@ void BinaryDriver::step_to_time(Real tmax) {
 				ostep_cnt++;
 				do_output = true;
 			} else {
-				dt = min(
-						dt,
-						(next_output_time - get_time()) / int(
-								(next_output_time - get_time()) / dt + 1.0));
+				dt = min(dt, (next_output_time - get_time()) / int((next_output_time - get_time()) / dt + 1.0));
 			}
 		} else if (int_output_freq != 0) {
 			do_output = bool(step_cnt % int_output_freq == 0);
@@ -149,9 +161,8 @@ void BinaryDriver::step_to_time(Real tmax) {
 		dt = this->step(dt);
 		if (verbosity >= 1) {
 			state_sum = root->state_sum() + root->flow_off();
-			printf("%4i %.3e %.3e % 5i %5i %5i %6.2f", step_cnt, get_time(),
-					dt, root->ngrids(), root->max_level(),
-					root->fine_point_count(), omp_get_wtime() - start_time);
+			printf("%4i %.3e %.3e % 5i %5i %5i %6.2f %6.2f", step_cnt, get_time(), dt, root->ngrids(), root->max_level(),
+					root->fine_point_count(), omp_get_wtime() - start_time, poissontime);
 			state_sums_out(stdout, state_sum[0]);
 			FILE* fp = fopen("ts.dat", "at");
 			fprintf(fp, "%e %e\n", get_time(), dt);
@@ -173,18 +184,17 @@ void BinaryDriver::step_to_time(Real tmax) {
 		fprintf(f, "%e %e %e\n", root->get_time(), com[0], com[1]);
 		fclose(f);
 
+#ifndef SCF_CODE
 #ifdef CENTER_OF_MASS_CORRECTION
 		Real dR, dRdot;
 		const Real w0 = 4.0 * Binary::Omega;
 		dR = sqrt(com[0] * com[0] + com[1] * com[1]);
-		dRdot = (dR - sqrt(
-				last_com[0] * last_com[0] + last_com[1] * last_com[1])) / dt;
+		dRdot = (dR - sqrt(last_com[0] * last_com[0] + last_com[1] * last_com[1])) / dt;
 		if (last_dx != 0.0) {
 			State::fR = -w0 * (w0 * dR + 2.0 * dRdot);
 			State::ftheta = atan2(com[1], com[0]);
 			FILE* f = fopen("com_corr.dat", "at");
-			fprintf(f, "%0.8e %0.8e %0.8e %0.8e %0.8e\n", get_time(), dR,
-					dRdot, State::fR, State::ftheta);
+			fprintf(f, "%0.8e %0.8e %0.8e %0.8e %0.8e\n", get_time(), dR, dRdot, State::fR, State::ftheta);
 			fclose(f);
 		}
 #endif
@@ -197,8 +207,8 @@ void BinaryDriver::step_to_time(Real tmax) {
 			Binary::Omega += domega;
 			FILE* f = fopen("domega.dat", "at");
 			Binary::phase += (Binary::Omega - Binary::Omega0) * dt;
-			fprintf(f, "%0.8e %0.8e %0.8e %0.8e %0.8e\n", get_time(),
-					Binary::Omega, domega, Binary::Omega0, Binary::phase);
+			fprintf(f, "%0.8e %0.8e %0.8e %0.8e %0.8e\n", get_time(), Binary::Omega, domega, Binary::Omega0,
+					Binary::phase);
 			fclose(f);
 		}
 		Binary::phase += (Binary::Omega - Binary::Omega0) * dt;
@@ -206,7 +216,7 @@ void BinaryDriver::step_to_time(Real tmax) {
 		last_com = com;
 		last_dy = m1[2] - m2[2];
 		last_dx = m1[1] - m2[1];
-
+#endif
 	} while (!last_step);
 	printf("time = %e\n", (clock() - start_time) / Real(CLOCKS_PER_SEC));
 }
@@ -263,7 +273,7 @@ void BinaryDriver::state_sums_out(FILE* fp, const State& s) {
 	fprintf(f, "\n");
 	fclose(f);
 	s0 = root->state_max();
-	State::rho_floor = max(s0[0], s0[1]) / 1.0e+14;
+	State::rho_floor = s0[0] / 1.0e+14;
 	f = fopen("max.dat", "at");
 	fprintf(f, "%e ", root->get_time());
 	for (int i = 0; i < STATE_NF; i++) {
@@ -284,6 +294,12 @@ void BinaryDriver::state_sums_out(FILE* fp, const State& s) {
 }
 
 void BinaryDriver::solve(Real ell_toler) {
+	static bool first_call = true;
+	if (first_call) {
+		root->pot_from_grid();
+		root->phi_from_children();
+		first_call = false;
+	}
 	Real start_time = omp_get_wtime();
 	Real error, dlzerror;
 	int iter;
@@ -311,21 +327,20 @@ void BinaryDriver::solve(Real ell_toler) {
 		dlzerror = root->sum_dlz();
 		iter++;
 		FILE* fp = fopen("poisson.dat", "at");
-		fprintf(fp, "%5i %e %e %e\n", iter, error, dlzerror,
-				fabs(log(fabs(dlzerror / last_dlzerror))));
+		fprintf(fp, "%5i %e %e %e\n", iter, error, dlzerror, fabs(log(fabs(dlzerror / last_dlzerror))));
 		fclose(fp);
 #ifdef SCF_CODE
 		if (error < ELL_TOLER * 1000.0 && iter >= 5) {
 			break;
 		}
-	}while (error > ell_toler || (iter < 5));
+	} while (error > ell_toler || (iter < 5));
 #else
-	} while (error > ell_toler);
+//	exit(1);
+}while (error > ell_toler);
 #endif
 	root->pot_to_grid();
 	root->inject_from_children();
 	poissontime += omp_get_wtime() - start_time;
-
 }
 
 void BinaryDriver::sub_step(Real dt, Real beta, int rk) {
@@ -367,7 +382,8 @@ void BinaryDriver::sub_step(Real dt, Real beta, int rk) {
 }
 
 Real BinaryDriver::step(Real dt, bool test_step) {
-	assert( dt > 0.0 );
+	poissontime = 0.0;
+	assert( dt > 0.0);
 	bool resolve = false;
 	if (step_cnt <= 0) {
 #ifdef READ_FROM_FILE
@@ -375,21 +391,18 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 #endif
 		solve();
 		root->store_phi();
-		FILE* fp = fopen("X.start.chk", "wb");
-		root->write(fp);
-		fclose(fp);
+//		FILE* fp = fopen("X.start.chk", "wb");
+//		root->write(fp);
+//		fclose(fp);
 	}
 	Binary::binary_integrals_t B;
 #ifndef SCF_CODE
 	root->M1M2data(&B);
 	FILE* fp = fopen("lobe.dat", "at");
-	fprintf(
-			fp,
-			"%e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e\n",
-			get_time()/*1*/, B.q/*2*/, B.a/*3*/, B.jorb/*4*/,
-			B.total_energy/*5*/, B.kinetic/*6*/, B.m1/*7*/, B.js1/*8*/,
-			B.I1/*9*/, B.m2/*10*/, B.js2/*11*/, B.I2/*12*/, B.mc/*13*/,
-			B.jc/*14*/, B.Ic/*15*/, B.V1/*16*/, B.V2/*17*/);
+	fprintf(fp, "%e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e %0.8e\n",
+			get_time()/*1*/, B.q/*2*/, B.a/*3*/, B.jorb/*4*/, B.total_energy/*5*/, B.kinetic/*6*/, B.m1/*7*/,
+			B.js1/*8*/, B.I1/*9*/, B.m2/*10*/, B.js2/*11*/, B.I2/*12*/, B.mc/*13*/, B.jc/*14*/, B.Ic/*15*/, B.V1/*16*/,
+			B.V2/*17*/);
 	fclose(fp);
 #endif
 	root->store();
@@ -412,10 +425,12 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 	root->enforce_boundaries();
 	if (step_cnt % 8 == 0 || test_step) {
 		State smax = root->state_max();
-		Real mind = max(smax.rho(0), smax.rho(1));
+		Real mind = smax.rho();
 		mind /= DYNAMIC_RANGE;
 		//	printf("\nSetting minimum refinement density to %e\n", mind);
 		GridNode::min_refine_density = mind;
+#ifdef SCF_CODE
+#endif
 #ifndef FIXED_MESH
 #ifndef SCF_CODE
 		root->add_pot_et();
@@ -427,11 +442,12 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 				solve(ELL_TOLER / 10.0);
 				root->store_phi();
 				resolve = true;
-				Vector<Real, 4> m1 = root->mass_sum(0);
-				Vector<Real, 4> m2 = root->mass_sum(1);
+				Vector<Real, 4> m1;
+				Vector<Real, 4> m2;
+				m1 = root->mass_sum(0);
+				m2 = root->mass_sum(1);
 				Vector<Real, 4> l1 = root->find_l1(m1, m2);
-				root->mark_lobes(l1[0], l1[1], l1[2], m1[1], m2[1], m1[2],
-						m2[2]);
+				root->mark_lobes(l1[0], l1[1], 0.0, 0.0, 0.0, 0.0, 0.0);
 			}
 		}
 #ifndef SCF_CODE
@@ -444,7 +460,7 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 	root->set_time(get_time() + dt);
 	static Real omega_p1, K2, K1, virial;
 #ifdef SCF_CODE
-	if (get_time() > 10.0 ) {
+	if (get_time() > 10.0) {
 		if (fabs(log(K1 / K2)) < 1.0e-5) {
 			this->reset_time();
 			Binary::phase = 0.0;
@@ -461,6 +477,7 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 			system("mv *.chk ./scf_data\n");
 			system("mv *.gz ./scf_data\n");
 			system("mv *.dat ./scf_data\n");
+			system("mv ./scf_data/helm*.dat .\n");
 			//			printf("\nSCF complete - Starting hydro-code\n");
 			printf("\nSCF complete\n");
 			exit(1);
@@ -468,28 +485,60 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 	}
 	if (get_time() > 0.0 && !test_step) {
 		Real phi1max, phi2min;
-		Vector<Real, 4> m1 = root->mass_sum(0);
-		Vector<Real, 4> m2 = root->mass_sum(1);
+		Vector<Real, 4> m1;
+		Vector<Real, 4> m2;
+		m1 = root->mass_sum(0);
+		m2 = root->mass_sum(1);
 		Real phi0_1_np1;
 		Vector<Real, 4> l1;
 		l1 = root->find_l1(m1, m2);
 		omega_p1 = root->next_omega();
 		Binary::l1x = l1[1];
-		root->mark_lobes(l1[0], l1[1], 0.0,m1[1], m2[1],0.0,0.0);
-		phi2min = root->find_phimin(1.0e-6, 2);
+		root->mark_lobes(l1[0], l1[1], 0.0, 0.0, 0.0, 0.0, 0.0);
+		phi2min = root->find_phimin(NULL, NULL, 2);
 		Binary::phi0_2 = l1[0] + (phi2min - l1[0]) * (1.0 - Binary::fill_factor);
 		if (Binary::phi0_1 > l1[0]) {
 			phi1max = root->find_phimax(1.0e-6, 1);
 			Binary::phi0_1 = phi1max;
 			printf("%e\n", phi1max);
 		}
-		K1 = root->find_K(Binary::phi0_1, 1);
-		K2 = root->find_K(Binary::phi0_2, 2);
+#ifdef ZTWD
+		Real f;
+		//	Real rho_fix0 = Binary::M1 / root->mass_sum(0)[0] * 0.5;
+		//	Real rho_fix1 = (Binary::M1 * Binary::q) / root->mass_sum(1)[0] * 0.5;
+		//printf("%e %e\n", rho_fix0, rho_fix1);
+		//	root->fix_rho(rho_fix0, rho_fix1);
+		//	m1 = root->mass_sum(0);
+		//	m2 = root->mass_sum(1);
+		//	Binary::phi0_1 = Binary::phi0_2;
+		do {
+			//printf("%e %e\n", Binary::K1, Binary::K2);
+			f = Binary::K2;
+			Binary::K2 -= max(min(root->find_A(Binary::phi0_2, 2), Binary::K2 / 2.0), -Binary::K2 * 2);
+			f -= Binary::K2;
+
+		} while (fabs(f / Binary::K2) > 1.0e-12);
+		do {
+			f = Binary::K1;
+			Binary::K1 -= max(min(root->find_A(Binary::phi0_1, 1), Binary::K1 / 2.0), -Binary::K1 * 2);
+			f -= Binary::K1;
+			//	printf("%e %e\n", Binary::K1, f);
+
+		} while (fabs(f / Binary::K1) > 1.0e-12);
+		//	Binary::K1 = Binary::K2;
+		K1 = Binary::K1;
+		K2 = Binary::K2;
 		Real eps = 1.0 + 1.0e-1;
 		Binary::phi0_1 *= pow(K1 / K2, dt);
+#else
+		K1 = root->find_K(Binary::phi0_1, 1);
+		K2 = root->find_K(Binary::phi0_2, 2);
+#endif
 		Binary::Omega *= pow(omega_p1 / Binary::Omega, dt);
+#ifndef ZTWD
 		Binary::K1 = K1;
 		Binary::K2 = K2;
+#endif
 		Real d0 = 1.01;
 		Real xcom = (m1[1] * m1[0] + m2[1] * m2[0]) / (m1[0] + m2[0]);
 		Real ycom = (m1[2] * m1[0] + m2[2] * m2[0]) / (m1[0] + m2[0]);
@@ -500,8 +549,19 @@ Real BinaryDriver::step(Real dt, bool test_step) {
 		fprintf(fp, "%e %e %e %e %e %e\n", root->get_time(), origin[0], origin[1], origin[2], xcom, ycom);
 		fclose(fp);
 		root->set_origin(origin);
-		printf("t=%e  m1=%e m2=%e Omega=%e xcom=%e 	Kerr=%e	 ", root->get_time(), m1[0], m2[0], Binary::Omega,
-				xcom, fabs(log(K1 / K2)));
+		printf("t=%e  m1=%e m2=%e Omega=%e xcom=%e 	Kerr=%e K1=%e K2=%e phi01=%e phi02=%e	 ", root->get_time(), m1[0],
+				m2[0], Binary::Omega, xcom, fabs(log(K1 / K2)), K1, K2, Binary::phi0_1, Binary::phi0_2);
+		const Real A = 6.0023e+22;
+		const Real B = 2.0 * 9.7393e+5;
+		const Real G = 6.6745e-8;
+		Binary::set_units();
+		printf("M1 = %e ", 2.0 * m1[0] * Binary::Ug / 1.98e+33);
+		Binary::M1 = (Binary::M1 * 0.9 + 0.1 * Binary::AccretorMass * (1.98e+33 / Binary::Ug));
+#ifdef ZTWD
+		Vector<Real, STATE_NF> smax = root->state_max();
+		Binary::accretor_cut = smax[0] / 7.0;
+		Binary::donor_cut = smax[1] / 7.0;
+#endif
 	}
 #endif
 	FILE* f = fopen("lz.dat", "at");

@@ -12,29 +12,42 @@ int Program::run(int argc, char* argv[]) {
 #ifdef BINARY
 		Real norb;
 #ifdef SCF_CODE
-			Real R2, q, a;
-			if (argc < 5) {
-				printf("Command format is scf <maxlevel> <mass ratio> <r2> <fill factor>\n");
-				abort();
-			}
-			GridNode::max_refine_level = atoi(argv[1]);
-			R2 = atof(argv[3]);
-			Binary::q = q = atof(argv[2]);
-			a = R2 / (0.49 * pow(q, 2.0 / 3.0) / (0.60 * pow(q, 2.0 / 3.0) + log(1.0 + pow(q, 1.0 / 3.0))));
-			Binary::a = a;
-			Binary::R2 = R2;
-			printf("a=%e\n", Binary::a);
-			Binary::fill_factor = atof(argv[4]);
-			Binary::R1 = Binary::a / 8.0;
-			Binary::Omega = sqrt((Binary::q + 1.0) / pow(Binary::a, 3.0));
-			Binary::Omega0 = Binary::Omega;
+		Real R2, q, a;
+#ifdef ZTWD
+		if (argc < 8) {
+			printf(
+					"Command format is scf <maxlevel> <mass ratio> <r2> <fill factor> <accretor mass in solar masses> <accretor type> <donor type>\n");
 #else
-			if (argc < 3) {
-				printf("Command format is amr <maxlevel> <norb>\n");
-				abort();
-			}
-			GridNode::max_refine_level = atoi(argv[1]);
-			norb = atof(argv[2]);
+		if (argc < 5) {
+				printf("Command format is scf <maxlevel> <mass ratio> <r2> <fill factor>\n");
+#endif
+			abort();
+		}
+#ifdef ZTWD
+		Binary::AccretorMass = atof(argv[5]);
+#endif
+		GridNode::max_refine_level = atoi(argv[1]);
+		R2 = atof(argv[3]);
+		Binary::q = q = atof(argv[2]);
+		a = R2 / (0.49 * pow(q, 2.0 / 3.0) / (0.60 * pow(q, 2.0 / 3.0) + log(1.0 + pow(q, 1.0 / 3.0))));
+		Binary::a = a;
+		Binary::R2 = R2 * 0.9;
+		printf("a=%e\n", Binary::a);
+		Binary::fill_factor = atof(argv[4]);
+		Binary::R1 = Binary::a / 8.0;
+		Binary::Omega = sqrt(Binary::M1 * (Binary::q + 1.0) / pow(Binary::a, 3.0));
+		Binary::Omega0 = Binary::Omega;
+#ifdef ZTWD
+		Binary::accretor_type = atoi(argv[6]);
+		Binary::donor_type = atoi(argv[7]);
+#endif
+#else
+		if (argc < 3) {
+			printf("Command format is amr <maxlevel> <norb>\n");
+			abort();
+		}
+		GridNode::max_refine_level = atoi(argv[1]);
+		norb = atof(argv[2]);
 #endif
 		assert( (GNX - 2*BW) % 4 == 0 );
 		omp_set_dynamic(1);

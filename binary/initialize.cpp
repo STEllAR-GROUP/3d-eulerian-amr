@@ -3,37 +3,31 @@
 #include "initialize.h"
 #include "indexer_2d.h"
 #include <math.h>
-extern "C" {
 #include "lane_emden.h"
-}
 #include "../oct_node/oct_node.h"
 #include "../grid/grid_node.h"
 #include "../binary/binary.h"
+#include "../helmholtz/helmholtz.h"
 
 void initialize(GridNode* g) {
 	const Indexer2d indexer(0, GNX - 1, 0, GNX - 1);
+	const Real rho_c2 = Binary::q * Binary::M1 * (pow(3.65375 / Binary::R2, 3.0) / (2.71406 * 4.0 * M_PI));
+	const Real rho_c1 = rho_c2 / pow(Binary::q, 2.0 * Binary::n / (3.0 - Binary::n));
+	const Real BinaryK = pow(Binary::R2 / 3.65375, 2) * 4.0 * M_PI / (2.5) * pow(rho_c2, 1.0 / 3.0);
+	Binary::K1 = BinaryK;
+	Binary::K2 = BinaryK;
+	Binary::set_units();
 	for (int index = 0; index <= indexer.max_index(); index++) {
-		const Real rho_c2 = Binary::q * Binary::M1 * (pow(3.65375 / Binary::R2,
-				3.0) / (2.71406 * 4.0 * M_PI));
-		const Real rho_c1 = rho_c2 / pow(Binary::q,
-				2.0 * Binary::n / (3.0 - Binary::n));
-		const Real BinaryK = pow(Binary::R2 / 3.65375, 2) * 4.0 * M_PI / (2.5)
-				* pow(rho_c2, 1.0 / 3.0);
-		Binary::K1 = BinaryK;
-		Binary::K2 = BinaryK;
+
 		const int j = indexer.x(index);
 		const int k = indexer.y(index);
 		const Real pi = 4.0 * atan(1.0);
-		const Real E1 = sqrt(
-				(4.0 * pi * pow(rho_c1, 1.0 - 1.0 / Binary::n)) / ((Binary::n
-						+ 1.0) * BinaryK));
-		const Real E2 = sqrt(
-				(4.0 * pi * pow(rho_c2, 1.0 - 1.0 / Binary::n)) / ((Binary::n
-						+ 1.0) * BinaryK));
+		const Real E1 = sqrt((4.0 * pi * pow(rho_c1, 1.0 - 1.0 / Binary::n)) / ((Binary::n + 1.0) * BinaryK));
+		const Real E2 = sqrt((4.0 * pi * pow(rho_c2, 1.0 - 1.0 / Binary::n)) / ((Binary::n + 1.0) * BinaryK));
 		const Real x1 = Binary::a * Binary::q / (Binary::q + 1.0);
 		const Real x2 = -Binary::a / (Binary::q + 1.0);
 		//	printf("%e %e %e %e %e\n", rho_c1, rho_c2, BinaryK, E1, E2);
-		State U = Vector<Real, STATE_NF> (0.0);
+		State U = Vector<Real, STATE_NF>(0.0);
 		int M0;
 		if (g->is_finest()) {
 			M0 = g->get_dx() / Binary::R1 + 2.0;
@@ -60,22 +54,18 @@ void initialize(GridNode* g) {
 				for (k0 = 0; k0 < M0; k0++) {
 					z = g->zf(k) + (Real(k0) + 0.5) * g->get_dx() / Real(M0);
 					for (j0 = 0; j0 < M0; j0++) {
-						y = g->yf(j) + (Real(j0) + 0.5) * g->get_dx()
-								/ Real(M0);
+						y = g->yf(j) + (Real(j0) + 0.5) * g->get_dx() / Real(M0);
 						for (i0 = 0; i0 < M0; i0++) {
-							x = g->xf(i) + (Real(i0) + 0.5) * g->get_dx()
-									/ Real(M0);
+							x = g->xf(i) + (Real(i0) + 0.5) * g->get_dx() / Real(M0);
 							r1 = sqrt((x - x1) * (x - x1) + y * y + z * z);
 							r1 *= E1;
 							r2 = sqrt((x - x2) * (x - x2) + y * y + z * z);
 							r2 *= E2;
 							if (r1 < 3.7) {
-								rho1 += pow(lane_emden(r1), Binary::n) / pow(
-										M0, 3) * rho_c1;
+								rho1 += pow(lane_emden(r1), Binary::n) / pow(M0, 3) * rho_c1;
 							}
 							if (r2 < 3.7) {
-								rho2 += pow(lane_emden(r2), Binary::n) / pow(
-										M0, 3) * rho_c2;
+								rho2 += pow(lane_emden(r2), Binary::n) / pow(M0, 3) * rho_c2;
 							}
 						}
 					}
@@ -87,9 +77,10 @@ void initialize(GridNode* g) {
 			rho1 = max(rho1, State::rho_floor / 2.0);
 			rho2 = max(rho2, State::rho_floor / 2.0);
 			rho = rho1 + rho2;
-			(*g)(i, j, k) = Vector<Real, STATE_NF> (0.0);
-			(*g)(i, j, k)[State::d_index + 0] = rho1;
-			(*g)(i, j, k)[State::d_index + 1] = rho2;
+			(*g)(i, j, k) = Vector<Real, STATE_NF>(0.0);
+			(*g)(i, j, k)[State::d_index] = rho1 + rho2;
+			(*g)(i, j, k)[State::d_acc_index] = rho1;
+			(*g)(i, j, k)[State::d_don_index] = rho2;
 			(*g)(i, j, k)[State::pot_index] = 0.0;
 			_3Vec X;
 			X[0] = x;

@@ -13,6 +13,7 @@ typedef double PReal;
 
 class Poisson: public GridNode, public PoissonInterface {
 private:
+
 	Array3d<PReal, PNX, PNX, PNX> phi0;
 	Array3d<PReal, PNX, PNX, PNX> dphi1;
 	Array3d<PReal, PNX, PNX, PNX> dphi;

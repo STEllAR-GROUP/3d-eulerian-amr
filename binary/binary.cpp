@@ -5,7 +5,10 @@
 #include "binary.h"
 #include "indexer_2d.h"
 
-Real Binary::M1 = 1.0;
+int Binary::accretor_type = 1, Binary::donor_type = 1;
+Real Binary::Ug, Binary::Us, Binary::UK, Binary::Ucm;
+Real Binary::AccretorMass = 1.0;
+Real Binary::M1 = 2.0e-3;
 Real Binary::fill_factor = 0.99;
 Real Binary::n = 1.5;
 Real Binary::R1 = 2.5e-2;
@@ -19,7 +22,7 @@ Real Binary::phi0_2 = 0.0;
 Real Binary::scf_dt = 0.2;
 Real Binary::phase = 0.0;
 Real Binary::Omega0 = 0.0;
-Real Binary::l1x = 0.0;
+Real Binary::l1x = 0.0, Binary::accretor_cut, Binary::donor_cut;
 Real Binary::Omega = sqrt((M1 * (q + 1.0) / (a * a * a)));
 
 Vector<Real, 4> Binary::mass_sum(int frac) const {
@@ -27,18 +30,19 @@ Vector<Real, 4> Binary::mass_sum(int frac) const {
 	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
 	Vector<Real, 4> a;
 	int k, j, i;
-	Real a0, ax, ay, az;
+	Real a0, ax, ay, az, d;
 	a0 = ax = ay = az = 0.0;
-#pragma omp parallel for schedule(OMP_SCHEDULE) reduction(+:a0,ax,ay,az) private(k,j,i)
+#pragma omp parallel for schedule(OMP_SCHEDULE) reduction(+:a0,ax,ay,az) private(k,j,i,d)
 	for (int index = 0; index <= indexer.max_index(); index++) {
 		k = indexer.y(index);
 		j = indexer.x(index);
 		for (i = bw; i < GNX - bw; i++) {
 			if (!zone_is_refined(i, j, k)) {
-				a0 += (*this)(i, j, k).rho(frac) * h3;
-				ax += (*this)(i, j, k).rho(frac) * h3 * xc(i);
-				ay += (*this)(i, j, k).rho(frac) * h3 * yc(j);
-				az += (*this)(i, j, k).rho(frac) * h3 * zc(k);
+				d = frac == 0 ? (*this)(i, j, k).rho_accretor() : (*this)(i, j, k).rho_donor();
+				a0 += d * h3;
+				ax += d * h3 * xc(i);
+				ay += d * h3 * yc(j);
+				az += d * h3 * zc(k);
 			}
 		}
 	}
@@ -52,7 +56,7 @@ Vector<Real, 4> Binary::mass_sum(int frac) const {
 #endif
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			a += static_cast<const Binary*> (get_child(i))->mass_sum(frac);
+			a += static_cast<const Binary*>(get_child(i))->mass_sum(frac);
 		}
 	}
 	if (get_level() == 0) {
@@ -83,6 +87,8 @@ void Binary::write(FILE* fp) const {
 		fwrite(&Omega, sizeof(Real), 1, fp);
 		fwrite(&phase, sizeof(Real), 1, fp);
 		fwrite(&Omega0, sizeof(Real), 1, fp);
+		fwrite(&Binary::accretor_type, sizeof(int), 1, fp);
+		fwrite(&Binary::donor_type, sizeof(int), 1, fp);
 	}
 	GridNode::write(fp);
 }
@@ -136,7 +142,7 @@ void Binary::output(grid_output_t* ptr) const {
 	ptr->pi += GRID_NNODES;
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<const Binary*> (get_child(i))->output(ptr);
+			static_cast<const Binary*>(get_child(i))->output(ptr);
 		}
 	}
 }
@@ -186,7 +192,12 @@ void Binary::read(FILE* fp) {
 		fread(&Omega, sizeof(Real), 1, fp);
 		fread(&phase, sizeof(Real), 1, fp);
 		fread(&Omega0, sizeof(Real), 1, fp);
-		printf("K1,K2 %f %f\n", K1, K2);
+#ifdef ZTWD
+		fread(&Binary::accretor_type, sizeof(int), 1, fp);
+		fread(&Binary::donor_type, sizeof(int), 1, fp);
+		//	State::initialize(Binary::accretor_type, Binary::donor_type);
+#endif
+		//	printf("K1,K2 %f %f\n", K1, K2);
 	}
 	GridNode::read(fp);
 }
@@ -196,11 +207,10 @@ void Binary::add_difs(Real a, Real b) {
 	Vector<Real, STATE_NF>* D;
 	int j, k, i, i0, k0, j0;
 	State s;
-	Real dsum, fx0, fy0, fz0, x, y;
+	Real fx0, fy0, fz0, du;
 	const Real O = Binary::Omega0;
-	Real angular;
 	_3Vec gforce;
-#pragma omp parallel for schedule(OMP_SCHEDULE) private(j,k,i,D,s,dsum,i0,j0,k0,gforce,x,y,angular)
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(j,k,i,D,s,i0,j0,k0,gforce,du)
 	for (int index = 0; index <= indexer.max_index(); index++) {
 		j = indexer.x(index);
 		k = indexer.y(index);
@@ -215,15 +225,27 @@ void Binary::add_difs(Real a, Real b) {
 			gforce[1] = 0.5 * (fy(i, j, k) + fy(i, j + 1, k));
 			gforce[2] = 0.5 * (fz(i, j, k) + fz(i, j, k + 1));
 			(*D) += s.gravity_source(gforce, *D, X(i0, j0, k0));
+			du = 0.0;
+			du += Uxf(i0 + 1, j0, k0).vx(Xfx(i0 + 1, j0, k0));
+			du += Uyf(i0, j0 + 1, k0).vy(Xfy(i0, j0 + 1, k0));
+			du += Uzf(i0, j0, k0 + 1).vz(Xfz(i0, j0, k0 + 1));
+			du -= Uxf(i0, j0, k0).vx(Xfx(i0, j0, k0));
+			du -= Uyf(i0, j0, k0).vy(Xfy(i0, j0, k0));
+			du -= Uzf(i0, j0, k0).vz(Xfz(i0, j0, k0));
+			du /= get_dx();
+			(*D) += s.internal_energy_source(X(i, j, k), du);
 #else
 			(*D) += s.scf_source(pxc(i), pyc(j), lobe(i0, j0, k0));
 #endif
 			(*D)[State::pot_index] = 0.0;
+#ifdef ZTWD
+			(*D)[State::T_index] = 0.0;
+#endif
 		}
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->add_difs(a, b);
+			static_cast<Binary*>(get_child(i))->add_difs(a, b);
 		}
 	}
 	if (get_level() == 0) {
@@ -249,20 +271,20 @@ Real Binary::next_omega(Real* f, Real *df) const {
 			j0 = j + BW - 1;
 			for (int k = 1; k < PNX - 1; k++) {
 				k0 = k + BW - 1;
-				if (!zone_is_refined(i0, j0, k0)) {
+				if (!zone_is_refined(i0, j0, k0) && xc(i) < 0.0) {
 					d1 = -pxc(i) * Binary::Omega * Binary::Omega;
 					d2 = d1;
 					d2 += (g(i0 + 1, j0, k0).enthalpy() - g(i0 - 1, j0, k0).enthalpy()) / dx / 2.0;
 					d2 += (phi(i + 1, j, k) - phi(i - 1, j, k)) / dx / 2.0;
-					*df += 2.0 * d1 / Binary::Omega * dx3 * g(i0, j0, k0).rho(1);
-					*f += d2 * dx3 * g(i0, j0, k0).rho(1);
+					*df += 2.0 * d1 / Binary::Omega * dx3 * g(i0, j0, k0).rho();
+					*f += d2 * dx3 * g(i0, j0, k0).rho();
 				}
 			}
 		}
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<const Binary*> (get_child(i))->next_omega(f, df);
+			static_cast<const Binary*>(get_child(i))->next_omega(f, df);
 		}
 	}
 	return fabs(Binary::Omega - *f / *df);
@@ -293,7 +315,7 @@ Real Binary::sum_dlz() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			s += static_cast<const Binary*> (get_child(i))->sum_dlz();
+			s += static_cast<const Binary*>(get_child(i))->sum_dlz();
 		}
 	}
 	return s;
@@ -326,7 +348,7 @@ Real Binary::domega() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			domega += static_cast<const Binary*> (get_child(i))->domega();
+			domega += static_cast<const Binary*>(get_child(i))->domega();
 		}
 	}
 	if (get_level() == 0) {
@@ -359,7 +381,7 @@ Real Binary::sum_lz() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			s += static_cast<const Binary*> (get_child(i))->sum_lz();
+			s += static_cast<const Binary*>(get_child(i))->sum_lz();
 		}
 	}
 	return s;
@@ -418,13 +440,18 @@ Vector<Real, 4> Binary::find_l1(const Vector<Real, 4>& m1, const Vector<Real, 4>
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			*v = static_cast<const Binary*> (get_child(i))->find_l1(m1, m2, v);
+			*v = static_cast<const Binary*>(get_child(i))->find_l1(m1, m2, v);
 		}
 	}
 	return *v;
 }
 
 void Binary::mark_lobes(Real l1, Real l1x, Real l1y, Real c1x, Real c2x, Real c1y, Real c2y) {
+	if (get_level() == 0) {
+		find_phimin(&c1x, &c1y, 1);
+		find_phimin(&c2x, &c2y, 2);
+		//	printf("%e %e %e %e\n", c1x, c1y, c2x, c2y);
+	}
 	Real x, y, z, phi0, nx, ny, nz, phip, phim, dphi, frac;
 	int i0, j0, k0;
 	Real O2 = Binary::Omega * Binary::Omega;
@@ -459,7 +486,7 @@ void Binary::mark_lobes(Real l1, Real l1x, Real l1y, Real c1x, Real c2x, Real c1
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->mark_lobes(l1, l1x, l1y, c1x, c2x, c1y, c2y);
+			static_cast<Binary*>(get_child(i))->mark_lobes(l1, l1x, l1y, c1x, c2x, c1y, c2y);
 		}
 	}
 }
@@ -501,11 +528,82 @@ Real Binary::find_K(Real phi0, int ln) const {
 	K /= pow(Binary::n + 1.0, Binary::n) * m2;
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			K += static_cast<const Binary*> (get_child(i))->find_K(phi0, ln);
+			K += static_cast<const Binary*>(get_child(i))->find_K(phi0, ln);
 		}
 	}
 	if (get_level() == 0) {
 		K = pow(K, 1.0 / Binary::n);
+	}
+//	printf("%e\n", K);
+	return K;
+}
+
+Real Binary::find_A(Real phi0, int ln, Real* dmda) const {
+	Real m2;
+	Real dmda0, df;
+	if (get_level() == 0) {
+		dmda = &dmda0;
+		dmda0 = 0.0;
+	}
+	if (ln == 2) {
+		m2 = Binary::M1 * Binary::q;
+	} else {
+		m2 = Binary::M1;
+	}
+#ifdef Z_REFLECT
+	m2 /= 2.0;
+#endif
+	df = 0.0;
+	Real x, y, nx, ny, nz, phi1;
+	Real O2 = Binary::Omega * Binary::Omega;
+	Real K = 0.0, H, A, y0;
+	int i0, j0, k0;
+	Real dx3 = get_dx() * get_dx() * get_dx();
+	for (int i = 1; i < PNX - 1; i++) {
+		for (int j = 1; j < PNX - 1; j++) {
+			for (int k = 1; k < PNX - 1; k++) {
+				i0 = i + BW - 1;
+				j0 = j + BW - 1;
+				k0 = k + BW - 1;
+				if (lobe(i0, j0, k0) == ln && !poisson_zone_is_refined(i, j, k)) {
+					x = pxc(i);
+					y = pyc(j);
+					phi1 = phi(i, j, k) - 0.5 * (x * x + y * y) * O2;
+					if (ln == 1) {
+						H = Binary::phi0_1 - phi1;
+						A = Binary::K1;
+						y0 = H / A / 8.0;
+						if (y0 > 0.0) {
+							df += -3.0 * y0 * (y0 + 1.0) / A * sqrt(y0 * y0 + 2.0 * y0);
+							K += pow(y0 * y0 + 2.0 * y0, 1.5);
+						}
+					} else {
+						H = Binary::phi0_2 - phi1;
+						A = Binary::K2;
+						y0 = H / A / 8.0;
+						if (y0 > 0.0) {
+							//printf( "%e\n", df);
+							df += -3.0 * y0 * (y0 + 1.0) / A * sqrt(y0 * y0 + 2.0 * y0);
+							K += pow(y0 * y0 + 2.0 * y0, 1.5);
+						}
+					}
+				}
+			}
+		}
+	}
+	K *= dx3;
+	df *= dx3;
+	*dmda += df;
+	for (int i = 0; i < OCT_NCHILD; i++) {
+		if (this->get_child(i) != NULL) {
+			K += static_cast<const Binary*>(get_child(i))->find_A(phi0, ln, dmda);
+		}
+	}
+	if (get_level() == 0) {
+		Real dm = K - m2;
+		K = dm / dmda0;
+		//	printf("%e %e\n", dm, dmda0);
+////		abort();
 	}
 	return K;
 }
@@ -523,7 +621,8 @@ Real Binary::find_phimax(Real rho_cut, int ln) const {
 				i0 = i + BW - 1;
 				j0 = j + BW - 1;
 				k0 = k + BW - 1;
-				if (lobe(i0, j0, k0) == ln && !poisson_zone_is_refined(i, j, k) && (*this)(i0, j0, k0).rho() > rho_cut) {
+				if (lobe(i0, j0, k0) == ln && !poisson_zone_is_refined(i, j, k)
+						&& (*this)(i0, j0, k0).rho() > rho_cut) {
 					x = pxc(i);
 					y = pyc(j);
 					phi1 = phi(i, j, k) - 0.5 * (x * x + y * y) * O2;
@@ -534,15 +633,25 @@ Real Binary::find_phimax(Real rho_cut, int ln) const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			phi_max = max(phi_max, static_cast<const Binary*> (get_child(i))->find_phimax(rho_cut, ln));
+			phi_max = max(phi_max, static_cast<const Binary*>(get_child(i))->find_phimax(rho_cut, ln));
 		}
 	}
 	return phi_max;
 }
 
-Real Binary::find_phimin(Real rho_cut, int ln) const {
-	Real phi_min = +1.0e+99;
+Real Binary::find_phimin(Real* x0, Real* y0, int ln, Real phi_min) const {
+	Real x00, y00;
+	if (x0 == NULL) {
+		x0 = &x00;
+		x00 = 0.0;
+	}
+	if (y0 == NULL) {
+		y0 = &y00;
+		y00 = 0.0;
+	}
+	Real phipx, phimx, phipy, phimy;
 	Real x, y, nx, ny, nz, phi1;
+	Real phi_px, phi_mx, phi_py, phi_my, phi_pz, phi_mz;
 	Real O2 = Binary::Omega * Binary::Omega;
 	Real K = 0.0;
 	int i0, j0, k0;
@@ -553,18 +662,29 @@ Real Binary::find_phimin(Real rho_cut, int ln) const {
 				i0 = i + BW - 1;
 				j0 = j + BW - 1;
 				k0 = k + BW - 1;
-				if (lobe(i0, j0, k0) == ln && !poisson_zone_is_refined(i, j, k) && (*this)(i0, j0, k0).rho() > rho_cut) {
-					x = pxc(i);
-					y = pyc(j);
+				x = pxc(i);
+				y = pyc(j);
+				if (((ln == 1 && x > 0.0) || (ln == 2 && x < 0.0)) && !poisson_zone_is_refined(i, j, k)) {
 					phi1 = phi(i, j, k) - 0.5 * (x * x + y * y) * O2;
-					phi_min = min(phi_min, phi1);
+					phi_px = phi(i + 1, j, k) - 0.5 * (pow(pxc(i + 1), 2) + pow(pyc(j), 2)) * O2;
+					phi_mx = phi(i - 1, j, k) - 0.5 * (pow(pxc(i - 1), 2) + pow(pyc(j), 2)) * O2;
+					phi_py = phi(i, j + 1, k) - 0.5 * (pow(pxc(i), 2) + pow(pyc(j + 1), 2)) * O2;
+					phi_my = phi(i, j - 1, k) - 0.5 * (pow(pxc(i), 2) + pow(pyc(j - 1), 2)) * O2;
+					phi_pz = phi(i, j, k + 1) - 0.5 * (pow(pxc(i), 2) + pow(pyc(j), 2)) * O2;
+					phi_mz = phi(i, j, k - 1) - 0.5 * (pow(pxc(i), 2) + pow(pyc(j), 2)) * O2;
+					if (phi_min > phi1 && phi1 <= phi_px && phi1 <= phi_py && phi1 <= phi_pz && phi1 <= phi_mx
+							&& phi1 <= phi_my && phi1 <= phi_mz) {
+						phi_min = phi1;
+						*x0 = x;
+						*y0 = y;
+					}
 				}
 			}
 		}
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			phi_min = min(phi_min, static_cast<const Binary*> (get_child(i))->find_phimin(rho_cut, ln));
+			phi_min = static_cast<const Binary*>(get_child(i))->find_phimin(x0, y0, ln, phi_min);
 		}
 	}
 	return phi_min;
@@ -589,7 +709,7 @@ Real Binary::pot_sum() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			a0 += static_cast<const Binary*> (get_child(i))->pot_sum();
+			a0 += static_cast<const Binary*>(get_child(i))->pot_sum();
 		}
 	}
 	return a0;
@@ -660,7 +780,7 @@ void Binary::M1M2data(binary_integrals_t* b) {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->M1M2data(b);
+			static_cast<Binary*>(get_child(i))->M1M2data(b);
 		}
 	}
 	b->Ic += b0.Ic;
@@ -714,13 +834,17 @@ void Binary::pot_to_grid() {
 		for (i = 1, i0 = BW; i < PNX - 1; i++, i0++) {
 			const Real d = (*this)(i0, j0, k0).rho();
 			const Real R2 = pxc(i) * pxc(i) + pyc(j) * pyc(j);
+#ifdef SCF_CODE
+			Real pot = d * (phi(i, j, k) - 0.5 * R2 * Binary::Omega * Binary::Omega);
+#else
 			Real pot = d * (phi(i, j, k) - 0.5 * R2 * Binary::Omega0 * Binary::Omega0);
+#endif
 			(*this)(i0, j0, k0)[State::pot_index] = pot;
 		}
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->pot_to_grid();
+			static_cast<Binary*>(get_child(i))->pot_to_grid();
 		}
 	}
 }
@@ -748,7 +872,7 @@ void Binary::pot_from_grid() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->pot_from_grid();
+			static_cast<Binary*>(get_child(i))->pot_from_grid();
 		}
 	}
 	if (get_level() == 0) {
@@ -778,7 +902,7 @@ void Binary::add_pot_et() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->add_pot_et();
+			static_cast<Binary*>(get_child(i))->add_pot_et();
 		}
 	}
 }
@@ -806,7 +930,7 @@ void Binary::sub_pot_et() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->sub_pot_et();
+			static_cast<Binary*>(get_child(i))->sub_pot_et();
 		}
 	}
 }
@@ -814,12 +938,12 @@ void Binary::sub_pot_et() {
 void Binary::compute_physical_boundaries(Binary* root) {
 	for (int f = 0; f < OCT_NSIB; f++) {
 		if (is_phys_bound(f)) {
-			static_cast<PoissonPhysBound*> (get_sibling(f))->compute_boundaries(root);
+			static_cast<PoissonPhysBound*>(get_sibling(f))->compute_boundaries(root);
 		}
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->compute_physical_boundaries(root);
+			static_cast<Binary*>(get_child(i))->compute_physical_boundaries(root);
 		}
 	}
 
@@ -844,7 +968,7 @@ Real Binary::compute_phi(Real x, Real y, Real z) const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			sum += static_cast<const Binary*> (get_child(i))->compute_phi(x, y, z);
+			sum += static_cast<const Binary*>(get_child(i))->compute_phi(x, y, z);
 		}
 	}
 	return sum;
@@ -889,7 +1013,7 @@ void Binary::compute_source_sums() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<Binary*> (get_child(i))->compute_source_sums();
+			static_cast<Binary*>(get_child(i))->compute_source_sums();
 		}
 	}
 }
@@ -903,7 +1027,7 @@ Real Binary::max_dt() const {
 }
 
 Binary::Binary() :
-	Poisson() {
+		Poisson() {
 	// TODO Auto-generated constructor stub
 
 }
@@ -939,4 +1063,175 @@ _3Vec Binary::Vfy(int i, int j, int k) const {
 _3Vec Binary::Vfz(int i, int j, int k) const {
 	return V(i, j, k);
 }
+
+void Binary::add_point(const Vector<Real, 3>& loc, const State& st) {
+	Vector<Real, 3> tmp;
+	Vector<int, 3> index, ci;
+	tmp = loc - this->X(0, 0, 0);
+	for (int i = 0; i < 3; i++) {
+		index[i] = int(tmp[i] / get_dx() + 0.5);
+	}
+	tmp = -tmp;
+	for (int i = 0; i < 3; i++) {
+		tmp[i] += index[i] * get_dx();
+	}
+	Real d = sqrt(tmp.dot(tmp));
+	if (d < get_dx() * 1.0e-10) {
+//printf("(%e %e %e) ", loc[0], loc[1], loc[2]);
+//	printf("(%e %e %e %e)\n", tmp[0] / get_dx(), tmp[1] / get_dx(), tmp[2] / get_dx(), get_dx());
+		(*this)(index) = st;
+	} else {
+		if (this->get_level() >= 5) {
+			printf("(%e %e %e %e)\n", tmp[0] / get_dx(), tmp[1] / get_dx(), tmp[2] / get_dx(), get_dx());
+			abort();
+		}
+		ChildIndex c;
+		ci = index / (GNX / 2);
+		c.set_index(ci[0], ci[1], ci[2]);
+		if (this->get_child(int(c)) == NULL) {
+			this->create_child(c);
+		}
+		static_cast<Binary*>(this->get_child(c))->add_point(loc, st);
+	}
+}
+
+void Binary::input() {
+	DBfile* db = DBOpen( "X.silo", DB_PDB, DB_READ );
+	DBucdmesh* mesh;
+	DBucdvar* vars[STATE_NF];
+	Vector<Real,
+3>max_x	, min_x, origin;
+	mesh = DBGetUcdmesh(db, "mesh");
+	for (int i = 0; i < 3; i++) {
+		min_x[i] = reinterpret_cast<Real*>(mesh->min_extents)[i];
+		max_x[i] = reinterpret_cast<Real*>(mesh->max_extents)[i];
+	}
+	origin = max_x + min_x;
+	origin *= -0.5;
+#ifdef Z_REFLECT
+	origin[2] = 0.0;
+#endif
+	this->set_origin(origin);
+	for (int i = 0; i < STATE_NF; i++) {
+		vars[i] = DBGetUcdvar(db, output_field_names(i));
+	}
+	printf("%e %e %e\n", origin[0], origin[1], origin[2]);
+	OReal* coords[3];
+	Real x0, x1, y0, y1;
+	coords[0] = reinterpret_cast<OReal*>(mesh->coords[0]);
+	coords[1] = reinterpret_cast<OReal*>(mesh->coords[1]);
+	coords[2] = reinterpret_cast<OReal*>(mesh->coords[2]);
+	x0 = coords[0][mesh->zones->nodelist[0]];
+	x1 = coords[0][mesh->zones->nodelist[1]];
+	y0 = coords[1][mesh->zones->nodelist[0]];
+	y1 = coords[1][mesh->zones->nodelist[1]];
+	Binary::phase = atan2(y1 - y0, x1 - x0);
+	if (Binary::phase < 0.0) {
+		Binary::phase += 2.0 * M_PI;
+	}
+//	printf( "%e %e %e %e %e \n",Binary::phase, x0, x1, y0, y1 );
+	for (int i = 0; i < mesh->nnodes; i++) {
+		Real x, y, p;
+		p = Binary::phase;
+		x = coords[0][i];
+		y = coords[1][i];
+		coords[0][i] = cos(p) * x + sin(p) * y;
+		coords[1][i] = cos(p) * y - sin(p) * x;
+	}
+//	printf( "%i %i %i\n", mesh->nnodes, mesh->zones->nzones, mesh->zones->lnodelist);
+	for (int i = 0; i < mesh->zones->lnodelist / 8; i++) {
+		Vector<Real, 3> x = 0.0;
+		for (int j = 0; j < 8; j++) {
+			for (int k = 0; k < 3; k++) {
+				x[k] += coords[k][mesh->zones->nodelist[8 * i + j]];
+			}
+		}
+		x *= 0.125;
+//printf( "%e %e %e\n", x[0 ]- this->get_origin()[0], x[1], x[2]);
+//abort();
+		State st;
+		for (int j = 0; j < STATE_NF; j++) {
+			st[j] = ((Real*) vars[j]->vals[0])[i];
+		}
+		this->add_point(x, st);
+	}
+	Binary::Omega = 2.38840683;
+	Binary::Omega0 = 2.39110996;
+	this->set_time(mesh->time * 2.0 * M_PI / Binary::Omega0);
+	this->set_time_normal(2.0 * M_PI / Binary::Omega0);
+	printf("time = %e\n", get_time());
+	for (int i = 0; i < STATE_NF; i++) {
+		DBFreeUcdvar(vars[i]);
+	}
+	DBFreeUcdmesh(mesh);
+	DBClose(db);
+	printf("Done reading Silo\n");
+}
+
+void Binary::compute_x_flux() {
+	for (int i = 0; i < OCT_NCHILD; i++) {
+		if (this->get_child(i) != NULL) {
+			static_cast<Binary*>(get_child(i))->compute_x_flux();
+		}
+	}
+	Grid::compute_x_flux();
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	int k, j, i;
+	State u;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j,i,u)
+	for (int index = 0; index <= indexer.max_index(); index++) {
+		k = indexer.y(index);
+		j = indexer.x(index);
+		for (i = bw; i < GNX - bw + 1; i++) {
+			u = F(i, j, k);
+			u.adjust_rho_fluxes();
+			F(i, j, k) = u;
+		}
+	}
+}
+
+void Binary::compute_y_flux() {
+	for (int i = 0; i < OCT_NCHILD; i++) {
+		if (this->get_child(i) != NULL) {
+			static_cast<Binary*>(get_child(i))->compute_y_flux();
+		}
+	}
+	Grid::compute_y_flux();
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	int k, j, i;
+	State u;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j,i,u)
+	for (int index = 0; index <= indexer.max_index(); index++) {
+		k = indexer.y(index);
+		j = indexer.x(index);
+		for (i = bw; i < GNX - bw + 1; i++) {
+			u = F(j, i, k);
+			u.adjust_rho_fluxes();
+			F(j, i, k) = u;
+		}
+	}
+}
+
+void Binary::compute_z_flux() {
+	for (int i = 0; i < OCT_NCHILD; i++) {
+		if (this->get_child(i) != NULL) {
+			static_cast<Binary*>(get_child(i))->compute_z_flux();
+		}
+	}
+	Grid::compute_z_flux();
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	int k, j, i;
+	State u;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j,i,u)
+	for (int index = 0; index <= indexer.max_index(); index++) {
+		k = indexer.y(index);
+		j = indexer.x(index);
+		for (i = bw; i < GNX - bw + 1; i++) {
+			u = F(j, k, i);
+			u.adjust_rho_fluxes();
+			F(j, k, i) = u;
+		}
+	}
+}
+
 #endif

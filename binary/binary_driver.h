@@ -1,7 +1,9 @@
 #include "../defs.h"
 #ifdef BINARY
+
 #ifndef POI4SSON_DRIVER_H_
 #define POI4SSON_DRIVER_H_
+#include <stdio.h>
 
 #include "../poisson/poisson.h"
 #include "binary.h"
