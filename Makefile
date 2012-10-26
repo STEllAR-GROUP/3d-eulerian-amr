@@ -1,32 +1,72 @@
-.SUFFIXES: .cpp .c .f90
-CP=icpc
-CC=icc
-FC=ifort
-LD=icpc
-FLAGS=-I. -I/home/dmarce1/include -DNDEBUG -fast -openmp 
-#FLAGS=-I. -I/home/dmarce1/include -DNDEBUG -pg -openmp-stubs -O0
-#FLAGS=-I.  -DNDEBUG -g -O0 -openmp
-LDLIBS=-lsilo -L/home/dmarce1/lib 
-CPPSOURCES=assert.cpp indexer_2d.cpp program.cpp indexer_2d_by2.cpp main.cpp reconstruct.cpp grid/grid_amr_bound.cpp grid/grid_interface.cpp grid/grid_phys_bound.cpp grid/grid.cpp grid/grid_node.cpp binary/binary.cpp binary/initialize.cpp binary/binary_driver.cpp  binary/state.cpp binary/state_ztwd.cpp poisson/poisson_amr_bound.cpp poisson/poisson_phys_bound.cpp poisson/poisson.cpp euler/hydro_driver.cpp euler/initialize.cpp euler/state.cpp oct_node/child_index.cpp oct_node/oct_face.cpp oct_node/oct_node.cpp helmholtz/helmeos.cpp
-CSOURCES=binary/lane_emden.c 
+ifdef CC
+    ifneq ($(origin CC),'command line') 
+        CC=icc
+    endif
+endif
 
-CPPOBJECTS=$(CPPSOURCES:.cpp=.o)
-COBJECTS=$(CSOURCES:.c=.o)
+ifeq ($(CC),icc)
+    OMPFLAG=-openmp
+    ifdef DEBUG
+        CXXFLAGS+=-g -DDEBUG
+    else
+        CXXFLAGS+=-fast -DNDEBUG
+    endif
+else 
+    OMPFLAG=-fopenmp
+    ifdef DEBUG
+        CXXFLAGS+=-ggdb -DDEBUG
+    else
+        CXXFLAGS+=-O3 -march=native -DNDEBUG
+    endif
+endif
+
+ifdef AMR_MODULE
+    CXXFLAGS+=-D$(AMR_MODULE)
+endif
+
+CXXFLAGS+=-c -I. $(OMPFLAG) 
+
+LDFLAGS+=$(OMPFLAG) -lstdc++
+
+ifndef SILO_ROOT
+    LDFLAGS+=-L/usr/local/lib
+	CXXFLAGS+=-I/usr/local/include
+else
+    LDFLAGS+=-L$(SILO_ROOT)/lib
+    CXXFLAGS+=-I$(SILO_ROOT)/include
+endif
+
+ifdef USE_SILOH5
+    LDFLAGS+=-lsiloh5
+else
+    LDFLAGS+=-lsilo
+endif
+
+SOURCES=$(shell find . -name '*.cpp')
+
+OBJECTS=$(SOURCES:.cpp=.o)
+
+SDIRS=$(shell find ! -regex '\.\(/\(build\|\.\).*\|\)' -type d -printf "%f\n")
+BDIRS=$(addprefix build/, $(SDIRS))
+
 EXECUTABLE=amr
 
-.cpp.o:
-	$(CP) $(FLAGS) -c $< -o $@
+all: directories $(SOURCES) $(EXECUTABLE)
 
-.c.o:
-	$(CC) $(FLAGS) -c $< -o $@
+.PHONY: directories
+directories: $(BDIRS)/  
+
+$(BDIRS)/:
+	mkdir -p $@ 
+
+$(EXECUTABLE): $(OBJECTS) 
+	echo $(LDFLAGS)
+	$(CC) $(addprefix build/, $(OBJECTS)) -o build/$@ $(LDFLAGS) 
+
+.cpp.o: 
+	$(CC) $(CXXFLAGS) $< -o build/$@
+
+clean: 
+	rm -rf build
 
 
-$(EXECUTABLE): $(CPPOBJECTS) $(COBJECTS) 
-	$(LD) $(FLAGS) $(CPPOBJECTS) $(COBJECTS) -o $@ $(LDLIBS)
-
-all: $(CPPSOURCES) $(FSOURCES) $(CSOURCES) $(EXECUTABLE)
-	
-clean:
-	rm *.o
-	rm ./*/*.o
-	rm amr
