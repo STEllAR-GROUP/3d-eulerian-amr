@@ -21,7 +21,7 @@ void GridNode::set_origin(const _3Vec& O) {
 	Grid::set_origin(O);
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->set_origin(O);
+			static_cast<GridNode*>(get_child(i))->set_origin(O);
 		}
 	}
 }
@@ -37,7 +37,7 @@ void GridNode::write(FILE* fp) const {
 	fwrite(&age, sizeof(age), 1, fp);
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (c[i]) {
-			static_cast<const GridNode*> (get_child(i))->write(fp);
+			static_cast<const GridNode*>(get_child(i))->write(fp);
 		}
 	}
 }
@@ -51,7 +51,7 @@ void GridNode::read(FILE* fp) {
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (c[i]) {
 			this->create_child(i);
-			static_cast<GridNode*> (get_child(i))->read(fp);
+			static_cast<GridNode*>(get_child(i))->read(fp);
 		}
 	}
 }
@@ -64,36 +64,36 @@ void GridNode::enforce_boundaries() {
 	for (int index = 0; index <= indexer.max_index(); index++) {
 		j = indexer.x(index);
 		k = indexer.y(index);
-		sib = dynamic_cast<const GridInterface*> (get_sibling(XL));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(XL));
 		assert( sib != NULL);
 		for (i = 0; i < bw; i++) {
 			(*this)(i, j, k) = (*sib)(GNX - 2 * bw + i, j, k);
 		}
-		sib = dynamic_cast<const GridInterface*> (get_sibling(XU));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(XU));
 		assert( sib != NULL);
 		for (i = GNX - bw; i < GNX; i++) {
 			(*this)(i, j, k) = (*sib)(-GNX + 2 * bw + i, j, k);
 		}
 		i = indexer.x(index);
 		k = indexer.y(index);
-		sib = dynamic_cast<const GridInterface*> (get_sibling(YL));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(YL));
 		assert( sib != NULL);
 		for (j = 0; j < bw; j++) {
 			(*this)(i, j, k) = (*sib)(i, GNX - 2 * bw + j, k);
 		}
-		sib = dynamic_cast<const GridInterface*> (get_sibling(YU));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(YU));
 		assert( sib != NULL);
 		for (j = GNX - bw; j < GNX; j++) {
 			(*this)(i, j, k) = (*sib)(i, -GNX + 2 * bw + j, k);
 		}
 		i = indexer.x(index);
 		j = indexer.y(index);
-		sib = dynamic_cast<const GridInterface*> (get_sibling(ZL));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(ZL));
 		assert( sib != NULL);
 		for (k = 0; k < bw; k++) {
 			(*this)(i, j, k) = (*sib)(i, j, GNX - 2 * bw + k);
 		}
-		sib = dynamic_cast<const GridInterface*> (get_sibling(ZU));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(ZU));
 		assert( sib != NULL);
 		for (k = GNX - bw; k < GNX; k++) {
 			(*this)(i, j, k) = (*sib)(i, j, -GNX + 2 * bw + k);
@@ -101,7 +101,7 @@ void GridNode::enforce_boundaries() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->enforce_boundaries();
+			static_cast<GridNode*>(get_child(i))->enforce_boundaries();
 		}
 	}
 #ifdef RECON3D
@@ -116,7 +116,7 @@ void GridNode::enforce_edge_boundaries() {
 	const GridInterface* sib;
 #pragma omp parallel for schedule(OMP_SCHEDULE) private(i,k,sib)
 	for (j = bw; j < GNX - bw; j++) {
-		sib = dynamic_cast<const GridInterface*> (get_sibling(XL));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(XL));
 		assert( sib != NULL);
 		for (i = 0; i < bw; i++) {
 			k = 0;
@@ -126,7 +126,7 @@ void GridNode::enforce_edge_boundaries() {
 			(*this)(i, j, k) = (*sib)(GNX - 2 * bw + i, j, k);
 			(*this)(i, k, j) = (*sib)(GNX - 2 * bw + i, k, j);
 		}
-		sib = dynamic_cast<const GridInterface*> (get_sibling(XU));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(XU));
 		assert( sib != NULL);
 		for (i = GNX - bw; i < GNX; i++) {
 			k = 0;
@@ -136,7 +136,7 @@ void GridNode::enforce_edge_boundaries() {
 			(*this)(i, j, k) = (*sib)(-GNX + 2 * bw + i, j, k);
 			(*this)(i, k, j) = (*sib)(-GNX + 2 * bw + i, k, j);
 		}
-		sib = dynamic_cast<const GridInterface*> (get_sibling(YL));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(YL));
 		assert( sib != NULL);
 		for (i = 0; i < bw; i++) {
 			k = 0;
@@ -144,7 +144,7 @@ void GridNode::enforce_edge_boundaries() {
 			k = GNX - BW - 1;
 			(*this)(j, i, k) = (*sib)(j, GNX - 2 * bw + i, k);
 		}
-		sib = dynamic_cast<const GridInterface*> (get_sibling(YU));
+		sib = dynamic_cast<const GridInterface*>(get_sibling(YU));
 		assert( sib != NULL);
 		for (i = GNX - bw; i < GNX; i++) {
 			k = 0;
@@ -155,7 +155,7 @@ void GridNode::enforce_edge_boundaries() {
 	}
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->enforce_boundaries();
+			static_cast<GridNode*>(get_child(i))->enforce_boundaries();
 		}
 	}
 }
@@ -165,7 +165,7 @@ Real GridNode::max_dt() const {
 	Real cdtinv;
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (get_child(i) != NULL) {
-			cdtinv = 1.0 / static_cast<const GridNode*> (get_child(i))->max_dt();
+			cdtinv = 1.0 / static_cast<const GridNode*>(get_child(i))->max_dt();
 			dtinv = max(cdtinv, dtinv);
 		}
 	}
@@ -191,7 +191,7 @@ void GridNode::debug() const {
 }
 
 void GridNode::inject_from_parent(ChildIndex c) {
-	const GridNode* p = static_cast<const GridNode*> (get_parent());
+	const GridNode* p = static_cast<const GridNode*>(get_parent());
 	const Indexer2d_by2 indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
 	Vector<Real, STATE_NF> s1, s2, s3;
 	State u;
@@ -220,6 +220,13 @@ void GridNode::inject_from_parent(ChildIndex c) {
 			(*this)(i + 1, j + 0, k + 1) = u + (s1 - s2 + s3) * 0.25;
 			(*this)(i + 0, j + 1, k + 1) = u - (s1 - s2 - s3) * 0.25;
 			(*this)(i + 1, j + 1, k + 1) = u + (s1 + s2 + s3) * 0.25;
+			for (int i1 = 0; i1 < 2; i1++) {
+				for (int j1 = 0; j1 < 2; j1++) {
+					for (int k1 = 0; k1 < 2; k1++) {
+						(*this)(i + i1, j + j1, k + k1).floor(this->X(i + i1, j + j1, k + k1));
+					}
+				}
+			}
 #endif
 		}
 	}
@@ -231,7 +238,7 @@ void GridNode::error_from_parent() {
 #endif
 	if (get_level() != 0) {
 		const ChildIndex c = my_child_index();
-		const GridNode* p = static_cast<const GridNode*> (get_parent());
+		const GridNode* p = static_cast<const GridNode*>(get_parent());
 		const Indexer2d_by2 indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
 		State u;
 		int k, j, k0, j0, i, i0;
@@ -256,7 +263,7 @@ void GridNode::error_from_parent() {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->GridNode::error_from_parent();
+			static_cast<GridNode*>(get_child(i))->GridNode::error_from_parent();
 		}
 	}
 }
@@ -267,7 +274,7 @@ void GridNode::create_child(const ChildIndex& c) {
 	OctNode::create_child(c);
 	Vector<int, 3> child_offset;
 	child_offset = (get_offset() * 2 + bw) + c.vector() * (GNX - 2 * bw);
-	ptr = static_cast<GridNode*> (get_child(c));
+	ptr = static_cast<GridNode*>(get_child(c));
 	ptr->set_time(get_time());
 	ptr->set_dx(get_dx() * 0.5);
 	ptr->set_offset(child_offset);
@@ -316,7 +323,7 @@ void GridNode::destroy_child(const ChildIndex& c) {
 	}
 	OctNode::destroy_child(c);
 	for (int i = 0; i < OCT_NSIB; i++) {
-		assert (sib[i] != NULL);
+		assert(sib[i] != NULL);
 		if (sib[i]->is_real()) {
 			amr = this->new_amr_bound();
 			sib[i]->set_sibling(invert(OctFace(i)), amr);
@@ -344,7 +351,7 @@ void GridNode::add_difs(Real dt, Real beta) {
 	Grid::add_difs(dt, beta);
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->GridNode::add_difs(dt, beta);
+			static_cast<GridNode*>(get_child(i))->GridNode::add_difs(dt, beta);
 		}
 	}
 }
@@ -353,7 +360,7 @@ void GridNode::clear_difs() {
 	Grid::clear_difs();
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->clear_difs();
+			static_cast<GridNode*>(get_child(i))->clear_difs();
 		}
 	}
 
@@ -362,35 +369,125 @@ void GridNode::clear_difs() {
 void GridNode::compute_x_flux() {
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->compute_x_flux();
+			static_cast<GridNode*>(get_child(i))->compute_x_flux();
 		}
 	}
 	Grid::compute_x_flux();
+#ifdef GR
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	int k, i, j;
+	if (static_cast<OctNode*>(this)->is_phys_bound(XL)) {
+		i = bw;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j)
+		for (int index = 0; index <= indexer.max_index(); index++) {
+			k = indexer.y(index);
+			j = indexer.x(index);
+			for (int l = 0; l < STATE_NF; l++) {
+				if (sgn(U(i, j, k)[l]) * F(i, j, k)[l] > 0.0) {
+					F(i, j, k)[l] = 0.0;
+				}
+			}
+		}
+	}
+	if (static_cast<OctNode*>(this)->is_phys_bound(XU)) {
+		i = GNX - bw;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j)
+		for (int index = 0; index <= indexer.max_index(); index++) {
+			k = indexer.y(index);
+			j = indexer.x(index);
+			for (int l = 0; l < STATE_NF; l++) {
+				if (sgn(U(i, j, k)[l]) * F(i, j, k)[l] < 0.0) {
+					F(i, j, k)[l] = 0.0;
+				}
+			}
+		}
+	}
+#endif
 }
 
 void GridNode::compute_y_flux() {
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->compute_y_flux();
+			static_cast<GridNode*>(get_child(i))->compute_y_flux();
 		}
 	}
 	Grid::compute_y_flux();
+#ifdef GR
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	int k, i, j;
+	if (static_cast<OctNode*>(this)->is_phys_bound(YL)) {
+		i = bw;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j)
+		for (int index = 0; index <= indexer.max_index(); index++) {
+			k = indexer.y(index);
+			j = indexer.x(index);
+			for (int l = 0; l < STATE_NF; l++) {
+				if (sgn(U(j, i, k)[l]) * F(j, i, k)[l] > 0.0) {
+					F(j, i, k)[l] = 0.0;
+				}
+			}
+		}
+	}
+	if (static_cast<OctNode*>(this)->is_phys_bound(YU)) {
+		i = GNX - bw;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j)
+		for (int index = 0; index <= indexer.max_index(); index++) {
+			k = indexer.y(index);
+			j = indexer.x(index);
+			for (int l = 0; l < STATE_NF; l++) {
+				if (sgn(U(j, i, k)[l]) * F(j, i, k)[l] < 0.0) {
+					F(j, i, k)[l] = 0.0;
+				}
+			}
+		}
+	}
+#endif
 }
 
 void GridNode::compute_z_flux() {
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->compute_z_flux();
+			static_cast<GridNode*>(get_child(i))->compute_z_flux();
 		}
 	}
 	Grid::compute_z_flux();
+#ifdef GR
+	const Indexer2d indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
+	int k, i, j;
+	if (static_cast<OctNode*>(this)->is_phys_bound(ZL)) {
+		i = bw;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j)
+		for (int index = 0; index <= indexer.max_index(); index++) {
+			k = indexer.y(index);
+			j = indexer.x(index);
+			for (int l = 0; l < STATE_NF; l++) {
+				if (sgn(U(j, k, i)[l]) * F(j, k, i)[l] > 0.0) {
+					F(j, k, i)[l] = 0.0;
+				}
+			}
+		}
+	}
+	if (static_cast<OctNode*>(this)->is_phys_bound(ZU)) {
+		i = GNX - bw;
+#pragma omp parallel for schedule(OMP_SCHEDULE) private(k,j)
+		for (int index = 0; index <= indexer.max_index(); index++) {
+			k = indexer.y(index);
+			j = indexer.x(index);
+			for (int l = 0; l < STATE_NF; l++) {
+				if (sgn(U(j, k, i)[l]) * F(j, k, i)[l] < 0.0) {
+					F(j, k, i)[l] = 0.0;
+				}
+			}
+		}
+	}
+#endif
 }
 
 void GridNode::restore() {
 	Grid::restore();
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->restore();
+			static_cast<GridNode*>(get_child(i))->restore();
 		}
 	}
 }
@@ -412,7 +509,7 @@ void GridNode::store() {
 	Grid::store();
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->store();
+			static_cast<GridNode*>(get_child(i))->store();
 		}
 	}
 }
@@ -421,7 +518,7 @@ void GridNode::sum_x_difs() {
 	Grid::sum_x_difs();
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->sum_x_difs();
+			static_cast<GridNode*>(get_child(i))->sum_x_difs();
 		}
 	}
 	if (get_level() == 0) {
@@ -433,7 +530,7 @@ void GridNode::sum_y_difs() {
 	Grid::sum_y_difs();
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->sum_y_difs();
+			static_cast<GridNode*>(get_child(i))->sum_y_difs();
 		}
 	}
 	if (get_level() == 0) {
@@ -445,7 +542,7 @@ void GridNode::sum_z_difs() {
 	Grid::sum_z_difs();
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->sum_z_difs();
+			static_cast<GridNode*>(get_child(i))->sum_z_difs();
 		}
 	}
 	if (get_level() == 0) {
@@ -460,7 +557,7 @@ void GridNode::set_time(Real t) {
 	Grid::set_time(t);
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->set_time(t);
+			static_cast<GridNode*>(get_child(i))->set_time(t);
 		}
 	}
 }
@@ -469,7 +566,7 @@ void GridNode::set_dx(Real a) {
 	Grid::set_dx(a);
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->set_dx(a);
+			static_cast<GridNode*>(get_child(i))->set_dx(a);
 		}
 	}
 }
@@ -481,7 +578,7 @@ int GridNode::refine_flag_cnt() const {
 			cnt++;
 		}
 		if (this->get_child(i) != NULL) {
-			cnt += static_cast<const GridNode*> (get_child(i))->refine_flag_cnt();
+			cnt += static_cast<const GridNode*>(get_child(i))->refine_flag_cnt();
 		}
 	}
 	return cnt;
@@ -500,7 +597,7 @@ int GridNode::fine_point_count() const {
 				}
 			}
 			if (this->get_child(i) != NULL) {
-				cnt += static_cast<const GridNode*> (get_child(i))->fine_point_count();
+				cnt += static_cast<const GridNode*>(get_child(i))->fine_point_count();
 			}
 		}
 		return cnt;
@@ -509,13 +606,13 @@ int GridNode::fine_point_count() const {
 	}
 }
 
-void GridNode::exec_function(void(*f)(GridNode*), int minlev) {
+void GridNode::exec_function(void (*f)(GridNode*), int minlev) {
 	if (get_level() >= minlev) {
 		f(this);
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->exec_function(f, minlev);
+			static_cast<GridNode*>(get_child(i))->exec_function(f, minlev);
 		}
 	}
 }
@@ -526,7 +623,7 @@ void GridNode::clear_refine_flags() {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->clear_refine_flags();
+			static_cast<GridNode*>(get_child(i))->clear_refine_flags();
 		}
 	}
 }
@@ -539,7 +636,7 @@ void GridNode::set_refine_flags() {
 	} else if (get_level() < GridNode::max_refine_level) {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (this->get_child(i) != NULL) {
-				const GridNode* child = static_cast<GridNode*> (get_child(i));
+				const GridNode* child = static_cast<GridNode*>(get_child(i));
 				for (int j = 0; j < OCT_NCHILD; j++) {
 					if (child->refine[j] || (child->get_child(j) != NULL)) {
 						refine[i] = true;
@@ -561,7 +658,11 @@ void GridNode::set_refine_flags() {
 				c.set_y(2 * j / GNX);
 				c.set_z(2 * k / GNX);
 				bool test;
+#ifdef GR
+				test = (*this)(i, j, k).d() > GridNode::min_refine_density;
+#else
 				test = (*this)(i, j, k).rho() > GridNode::min_refine_density;
+#endif
 #pragma omp critical
 				{
 					refine[c] = refine[c] || test;
@@ -574,8 +675,8 @@ void GridNode::set_refine_flags() {
 			if (get_child(i)->nchildren() > 0) {
 				refine[i] = true;
 			}
-			static_cast<GridNode*> (get_child(i))->set_refine_flags();
-			const int age_c = static_cast<const GridNode*> (get_child(i))->age;
+			static_cast<GridNode*>(get_child(i))->set_refine_flags();
+			const int age_c = static_cast<const GridNode*>(get_child(i))->age;
 			if (age_c < MIN_GRID_LIFE && get_time() != 0.0 && get_level() < GridNode::max_refine_level) {
 				refine[i] = true;
 			}
@@ -586,7 +687,7 @@ void GridNode::set_refine_flags() {
 void GridNode::enforce_proper_nesting() {
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL && this->refine[i]) {
-			static_cast<GridNode*> (get_child(i))->enforce_proper_nesting();
+			static_cast<GridNode*>(get_child(i))->enforce_proper_nesting();
 		}
 	}
 	if (get_level() > 0) {
@@ -603,10 +704,10 @@ void GridNode::enforce_proper_nesting() {
 				i.flip_x();
 				g = NULL;
 				if ((mi.get_x() == ci.get_x()) && !is_phys_bound(ci.x_face())) {
-					g = dynamic_cast<GridNode*> (parent->get_sibling(ci.x_face()));
+					g = dynamic_cast<GridNode*>(parent->get_sibling(ci.x_face()));
 					assert(g!=NULL);
 				} else {
-					g = dynamic_cast<GridNode*> (parent);
+					g = dynamic_cast<GridNode*>(parent);
 					assert(g!=NULL);
 				}
 				if (g != NULL) {
@@ -618,10 +719,10 @@ void GridNode::enforce_proper_nesting() {
 				i.flip_y();
 				g = NULL;
 				if ((mi.get_y() == ci.get_y()) && !is_phys_bound(ci.y_face())) {
-					g = dynamic_cast<GridNode*> (parent->get_sibling(ci.y_face()));
+					g = dynamic_cast<GridNode*>(parent->get_sibling(ci.y_face()));
 					assert(g!=NULL);
 				} else {
-					g = dynamic_cast<GridNode*> (parent);
+					g = dynamic_cast<GridNode*>(parent);
 					assert(g!=NULL);
 				}
 				if (g != NULL) {
@@ -633,10 +734,10 @@ void GridNode::enforce_proper_nesting() {
 				i.flip_z();
 				g = NULL;
 				if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
-					g = dynamic_cast<GridNode*> (parent->get_sibling(ci.z_face()));
+					g = dynamic_cast<GridNode*>(parent->get_sibling(ci.z_face()));
 					assert(g!=NULL);
 				} else {
-					g = dynamic_cast<GridNode*> (parent);
+					g = dynamic_cast<GridNode*>(parent);
 					assert(g!=NULL);
 				}
 				if (g != NULL) {
@@ -652,18 +753,18 @@ void GridNode::enforce_proper_nesting() {
 					if ((mi.get_y() == ci.get_y()) && !is_phys_bound(ci.y_face())) {
 						tmp = parent->get_sibling(ci.x_face());
 						tmp = tmp->get_sibling(ci.y_face());
-						g = dynamic_cast<GridNode*> (tmp);
+						g = dynamic_cast<GridNode*>(tmp);
 						assert(g!=NULL);
 					} else {
-						g = dynamic_cast<GridNode*> (parent->get_sibling(ci.x_face()));
+						g = dynamic_cast<GridNode*>(parent->get_sibling(ci.x_face()));
 						assert(g!=NULL);
 					}
 				} else {
 					if ((mi.get_y() == ci.get_y()) && !is_phys_bound(ci.y_face())) {
-						g = dynamic_cast<GridNode*> (parent->get_sibling(ci.y_face()));
+						g = dynamic_cast<GridNode*>(parent->get_sibling(ci.y_face()));
 						assert(g!=NULL);
 					} else {
-						g = dynamic_cast<GridNode*> (parent);
+						g = dynamic_cast<GridNode*>(parent);
 						assert(g!=NULL);
 					}
 				}
@@ -680,18 +781,18 @@ void GridNode::enforce_proper_nesting() {
 					if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
 						tmp = parent->get_sibling(ci.x_face());
 						tmp = tmp->get_sibling(ci.z_face());
-						g = dynamic_cast<GridNode*> (tmp);
+						g = dynamic_cast<GridNode*>(tmp);
 						assert(g!=NULL);
 					} else {
-						g = dynamic_cast<GridNode*> (parent->get_sibling(ci.x_face()));
+						g = dynamic_cast<GridNode*>(parent->get_sibling(ci.x_face()));
 						assert(g!=NULL);
 					}
 				} else {
 					if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
-						g = dynamic_cast<GridNode*> (parent->get_sibling(ci.z_face()));
+						g = dynamic_cast<GridNode*>(parent->get_sibling(ci.z_face()));
 						assert(g!=NULL);
 					} else {
-						g = dynamic_cast<GridNode*> (parent);
+						g = dynamic_cast<GridNode*>(parent);
 						assert(g!=NULL);
 					}
 				}
@@ -708,18 +809,18 @@ void GridNode::enforce_proper_nesting() {
 					if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
 						tmp = parent->get_sibling(ci.y_face());
 						tmp = tmp->get_sibling(ci.z_face());
-						g = dynamic_cast<GridNode*> (tmp);
+						g = dynamic_cast<GridNode*>(tmp);
 						assert(g!=NULL);
 					} else {
-						g = dynamic_cast<GridNode*> (parent->get_sibling(ci.y_face()));
+						g = dynamic_cast<GridNode*>(parent->get_sibling(ci.y_face()));
 						assert(g!=NULL);
 					}
 				} else {
 					if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
-						g = dynamic_cast<GridNode*> (parent->get_sibling(ci.z_face()));
+						g = dynamic_cast<GridNode*>(parent->get_sibling(ci.z_face()));
 						assert(g!=NULL);
 					} else {
-						g = dynamic_cast<GridNode*> (parent);
+						g = dynamic_cast<GridNode*>(parent);
 						assert(g!=NULL);
 					}
 				}
@@ -742,7 +843,7 @@ void GridNode::enforce_proper_nesting() {
 							assert(tmp!=NULL);
 							tmp = tmp->get_sibling(ci.z_face());
 							assert(tmp!=NULL);
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 							if (g == NULL) {
 								printf("%s\n", typeid(*tmp).name());
@@ -750,18 +851,18 @@ void GridNode::enforce_proper_nesting() {
 						} else {
 							tmp = parent->get_sibling(ci.x_face());
 							tmp = tmp->get_sibling(ci.y_face());
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 						}
 					} else {
 						if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
 							tmp = parent->get_sibling(ci.x_face());
 							tmp = tmp->get_sibling(ci.z_face());
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 						} else {
 							tmp = parent->get_sibling(ci.x_face());
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 						}
 					}
@@ -770,20 +871,20 @@ void GridNode::enforce_proper_nesting() {
 						if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
 							tmp = parent->get_sibling(ci.y_face());
 							tmp = tmp->get_sibling(ci.z_face());
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 						} else {
 							tmp = parent->get_sibling(ci.y_face());
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 						}
 					} else {
 						if ((mi.get_z() == ci.get_z()) && !is_phys_bound(ci.z_face())) {
 							tmp = parent->get_sibling(ci.z_face());
-							g = dynamic_cast<GridNode*> (tmp);
+							g = dynamic_cast<GridNode*>(tmp);
 							assert(g!=NULL);
 						} else {
-							g = dynamic_cast<GridNode*> (parent);
+							g = dynamic_cast<GridNode*>(parent);
 							assert(g!=NULL);
 						}
 					}
@@ -801,9 +902,9 @@ void GridNode::enforce_proper_nesting() {
 void GridNode::propagate_refine_flags_up() {
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->propagate_refine_flags_up();
+			static_cast<GridNode*>(get_child(i))->propagate_refine_flags_up();
 			for (int j = 0; j < OCT_NCHILD; j++) {
-				if (static_cast<GridNode*> (get_child(i))->refine[j]) {
+				if (static_cast<GridNode*>(get_child(i))->refine[j]) {
 					refine[i] = true;
 					break;
 				}
@@ -825,7 +926,7 @@ bool GridNode::use_refine_flags() {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			bool test = static_cast<GridNode*> (get_child(i))->use_refine_flags();
+			bool test = static_cast<GridNode*>(get_child(i))->use_refine_flags();
 			rc = rc || test;
 		}
 	}
@@ -845,9 +946,9 @@ void GridNode::mirror_refine(const GridNode* mirror, int dir) {
 		}
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			ir = i ^ mask;
-			child_mirror = static_cast<const GridNode*> (mirror->get_child(ir));
+			child_mirror = static_cast<const GridNode*>(mirror->get_child(ir));
 			if (get_child(i) != NULL && child_mirror != NULL) {
-				static_cast<GridNode*> (get_child(i))->mirror_refine(child_mirror, dir);
+				static_cast<GridNode*>(get_child(i))->mirror_refine(child_mirror, dir);
 			}
 		}
 	}
@@ -936,11 +1037,11 @@ void GridNode::inject_from_children() {
 	GridNode* child;
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->inject_from_children();
+			static_cast<GridNode*>(get_child(i))->inject_from_children();
 		}
 	}
 	for (c = 0; c < OCT_NCHILD; c++) {
-		child = static_cast<GridNode*> (get_child(c));
+		child = static_cast<GridNode*>(get_child(c));
 		if (child != NULL) {
 			const Indexer2d_by2 indexer(bw, GNX - bw - 1, bw, GNX - bw - 1);
 			State cstate;
@@ -964,6 +1065,8 @@ void GridNode::inject_from_children() {
 					cstate += (*child)(i + 1, j + 1, k + 1);
 					cstate *= 0.125;
 					(*this)(i0, j0, k0) = cstate;
+					(*this)(i0, j0, k0).floor(this->X(i0, j0, k0));
+
 				}
 			}
 		}
@@ -979,7 +1082,7 @@ void GridNode::adjust_x_flux() {
 
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->adjust_x_flux();
+			static_cast<GridNode*>(get_child(i))->adjust_x_flux();
 		}
 	}
 
@@ -988,19 +1091,19 @@ void GridNode::adjust_x_flux() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(0, cj, ck);
 				if (l == 0) {
-					child_r = static_cast<const GridNode*> (get_child(ci));
+					child_r = static_cast<const GridNode*>(get_child(ci));
 					ci.set_x(1);
-					child_l = static_cast<const GridNode*> (get_sibling(XL)->get_child(ci));
+					child_l = static_cast<const GridNode*>(get_sibling(XL)->get_child(ci));
 					i0 = bw;
 				} else if (l == 1) {
-					child_l = static_cast<const GridNode*> (get_child(ci));
+					child_l = static_cast<const GridNode*>(get_child(ci));
 					ci.set_x(1);
-					child_r = static_cast<const GridNode*> (get_child(ci));
+					child_r = static_cast<const GridNode*>(get_child(ci));
 					i0 = GNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const GridNode*> (get_sibling(XU)->get_child(ci));
+					child_r = static_cast<const GridNode*>(get_sibling(XU)->get_child(ci));
 					ci.set_x(1);
-					child_l = static_cast<const GridNode*> (get_child(ci));
+					child_l = static_cast<const GridNode*>(get_child(ci));
 					i0 = GNX - bw;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -1045,7 +1148,7 @@ void GridNode::adjust_y_flux() {
 
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->adjust_y_flux();
+			static_cast<GridNode*>(get_child(i))->adjust_y_flux();
 		}
 	}
 
@@ -1054,19 +1157,19 @@ void GridNode::adjust_y_flux() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(cj, 0, ck);
 				if (l == 0) {
-					child_r = static_cast<const GridNode*> (get_child(ci));
+					child_r = static_cast<const GridNode*>(get_child(ci));
 					ci.set_y(1);
-					child_l = static_cast<const GridNode*> (get_sibling(YL)->get_child(ci));
+					child_l = static_cast<const GridNode*>(get_sibling(YL)->get_child(ci));
 					i0 = bw;
 				} else if (l == 1) {
-					child_l = static_cast<const GridNode*> (get_child(ci));
+					child_l = static_cast<const GridNode*>(get_child(ci));
 					ci.set_y(1);
-					child_r = static_cast<const GridNode*> (get_child(ci));
+					child_r = static_cast<const GridNode*>(get_child(ci));
 					i0 = GNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const GridNode*> (get_sibling(YU)->get_child(ci));
+					child_r = static_cast<const GridNode*>(get_sibling(YU)->get_child(ci));
 					ci.set_y(1);
-					child_l = static_cast<const GridNode*> (get_child(ci));
+					child_l = static_cast<const GridNode*>(get_child(ci));
 					i0 = GNX - bw;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -1112,7 +1215,7 @@ void GridNode::adjust_z_flux() {
 
 	for (i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<GridNode*> (get_child(i))->adjust_z_flux();
+			static_cast<GridNode*>(get_child(i))->adjust_z_flux();
 		}
 	}
 
@@ -1121,19 +1224,19 @@ void GridNode::adjust_z_flux() {
 			for (int cj = 0; cj < 2; cj++) {
 				ci.set_index(cj, ck, 0);
 				if (l == 0) {
-					child_r = static_cast<const GridNode*> (get_child(ci));
+					child_r = static_cast<const GridNode*>(get_child(ci));
 					ci.set_z(1);
-					child_l = static_cast<const GridNode*> (get_sibling(ZL)->get_child(ci));
+					child_l = static_cast<const GridNode*>(get_sibling(ZL)->get_child(ci));
 					i0 = bw;
 				} else if (l == 1) {
-					child_l = static_cast<const GridNode*> (get_child(ci));
+					child_l = static_cast<const GridNode*>(get_child(ci));
 					ci.set_z(1);
-					child_r = static_cast<const GridNode*> (get_child(ci));
+					child_r = static_cast<const GridNode*>(get_child(ci));
 					i0 = GNX / 2;
 				} else if (l == 2) {
-					child_r = static_cast<const GridNode*> (get_sibling(ZU)->get_child(ci));
+					child_r = static_cast<const GridNode*>(get_sibling(ZU)->get_child(ci));
 					ci.set_z(1);
-					child_l = static_cast<const GridNode*> (get_child(ci));
+					child_l = static_cast<const GridNode*>(get_child(ci));
 					i0 = GNX - bw;
 				}
 				if ((child_r == NULL) && (child_l != NULL)) {
@@ -1174,7 +1277,7 @@ int GridNode::get_zone_cnt() const {
 	const GridNode* child;
 	int zone_cnt = 0;
 	for (int i = 0; i < OCT_NCHILD; i++) {
-		child = static_cast<const GridNode*> (get_child(i));
+		child = static_cast<const GridNode*>(get_child(i));
 		if (child != NULL) {
 			zone_cnt += child->get_zone_cnt();
 		} else {
@@ -1185,13 +1288,24 @@ int GridNode::get_zone_cnt() const {
 }
 
 int GridNode::nvar_output() const {
+//#ifdef GR
+//	return STATE_NF + PRIM_NF;
+//#else
 	return STATE_NF;
+//#endif
 }
 
 void GridNode::load_output(grid_output_t* go, int i, int j, int k) const {
 	for (int l = 0; l < STATE_NF; l++) {
 		go->ele[l][go->ei] = (*this)(i, j, k)[l];
 	}
+//#ifdef GR
+//	go->ele[STATE_NF + 0][go->ei] = (*this)(i, j, k).rho();
+//	go->ele[STATE_NF + 1][go->ei] = (*this)(i, j, k).eta();
+//	go->ele[STATE_NF + 2][go->ei] = (*this)(i, j, k).v(0);
+//	go->ele[STATE_NF + 3][go->ei] = (*this)(i, j, k).v(1);
+//	go->ele[STATE_NF + 4][go->ei] = (*this)(i, j, k).v(2);
+//#endif
 }
 
 const char* GridNode::output_field_names(int i) const {
@@ -1233,7 +1347,7 @@ void GridNode::output(grid_output_t* ptr) const {
 	ptr->pi += GRID_NNODES;
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			static_cast<const GridNode*> (get_child(i))->output(ptr);
+			static_cast<const GridNode*>(get_child(i))->output(ptr);
 		}
 	}
 }
@@ -1248,7 +1362,7 @@ bool GridNode::zone_is_refined(int i, int j, int k) const {
 }
 
 GridNode::GridNode() :
-	Grid(), OctNode() {
+		Grid(), OctNode() {
 	age = -1;
 	int k, j, i;
 	const Indexer2d indexer(0, GNX - 1, 0, GNX - 1);
@@ -1260,7 +1374,7 @@ GridNode::GridNode() :
 		k = indexer.y(index);
 		j = indexer.x(index);
 		for (i = 0; i < GNX; i++) {
-			E0(i, j, k) = Vector<Real, STATE_NF> (0.0);
+			E0(i, j, k) = Vector<Real, STATE_NF>(0.0);
 		}
 	}
 
@@ -1268,7 +1382,7 @@ GridNode::GridNode() :
 
 void GridNode::init() {
 	OctNode* sib;
-	assert( get_level() == 0 );
+	assert( get_level() == 0);
 	for (int i = 0; i < OCT_NSIB; i++) {
 		sib = this->new_phys_bound();
 		this->set_sibling(OctFace(i), sib);
@@ -1280,7 +1394,7 @@ int GridNode::ngrids() const {
 	int sum = 1;
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			sum += static_cast<const GridNode*> (get_child(i))->ngrids();
+			sum += static_cast<const GridNode*>(get_child(i))->ngrids();
 		} else if (refine[i]) {
 			sum++;
 		}
@@ -1295,7 +1409,7 @@ int GridNode::ngrids(int l) const {
 	} else {
 		for (int i = 0; i < OCT_NCHILD; i++) {
 			if (this->get_child(i) != NULL) {
-				sum += static_cast<const GridNode*> (get_child(i))->ngrids(l);
+				sum += static_cast<const GridNode*>(get_child(i))->ngrids(l);
 			}
 		}
 	}
@@ -1306,7 +1420,7 @@ GridNode::~GridNode() {
 }
 
 void GridNode::output(const char* prefix, int counter) const {
-	assert( get_level() == 0 );
+	assert( get_level() == 0);
 	char filename[32];
 	int cnt, nzones, nnodes;
 	grid_output_t go;
@@ -1331,12 +1445,12 @@ void GridNode::output(const char* prefix, int counter) const {
 	nzones = get_zone_cnt();
 	for (int i = 0; i < 3; i++) {
 		coordnames[i] = new char[2];
-		coords[i] = reinterpret_cast<float*> (new OReal[nnodes]);
+		coords[i] = reinterpret_cast<float*>(new OReal[nnodes]);
 	}
 	go.nodelist = new int[8 * nzones];
-	go.x = reinterpret_cast<OReal*> (coords[0]);
-	go.y = reinterpret_cast<OReal*> (coords[1]);
-	go.z = reinterpret_cast<OReal*> (coords[2]);
+	go.x = reinterpret_cast<OReal*>(coords[0]);
+	go.y = reinterpret_cast<OReal*>(coords[1]);
+	go.z = reinterpret_cast<OReal*>(coords[2]);
 	go.ele = new OReal*[nf];
 	for (int i = 0; i < nf; i++) {
 		go.ele[i] = new OReal[nzones];
@@ -1402,7 +1516,7 @@ Vector<State, 4> GridNode::state_sum() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			s0 += static_cast<const GridNode*> (get_child(i))->state_sum();
+			s0 += static_cast<const GridNode*>(get_child(i))->state_sum();
 		}
 	}
 	/*	if (get_level() == 0) {
@@ -1434,7 +1548,7 @@ State GridNode::state_max() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			State s1 = static_cast<const GridNode*> (get_child(i))->state_max();
+			State s1 = static_cast<const GridNode*>(get_child(i))->state_max();
 			for (int l = 0; l < STATE_NF; l++) {
 				s0[l] = max(s1[l], s0[l]);
 			}
@@ -1465,7 +1579,7 @@ State GridNode::state_min() const {
 	}
 	for (int i = 0; i < OCT_NCHILD; i++) {
 		if (this->get_child(i) != NULL) {
-			State s1 = static_cast<const GridNode*> (get_child(i))->state_min();
+			State s1 = static_cast<const GridNode*>(get_child(i))->state_min();
 			for (int l = 0; l < STATE_NF; l++) {
 				s0[l] = min(s1[l], s0[l]);
 			}

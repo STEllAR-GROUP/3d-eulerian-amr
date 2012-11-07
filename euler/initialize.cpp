@@ -1,3 +1,4 @@
+
 #include "../defs.h"
 #ifdef EULER
 #include "initialize.h"
@@ -24,7 +25,7 @@ void initialize(GridNode* g) {
 	const Real R_outer = 1.0747e-4;
 	const Real R_inner = r_outer*(1.0-eps)/(1.0+eps);
 	const Real C_2 = sqrt(2.0*G*M_c*R_inner*R_outer/(R_inner+R_outer));
-	const Real C_1 = pow(0.5*(C_2/R_inner),2.0)-G*M_c/R_inner;	
+	const Real C_1 = pow(0.5*(C_2/R_inner),2.0)-G*M_c/R_inner;
 
 	for (int k = 0; k < GNX; k++) {
 		for (int j = 0; j < GNX; j++) {

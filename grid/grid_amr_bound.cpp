@@ -69,11 +69,11 @@ State GridAMRBound::operator()(int i, int j, int k) const {
 		break;
 	}
 	u -= m * 0.25;
-	assert( u.rho() > 0.0 );
+/*	assert( u.rho() > 0.0 );
 	if (u.rho() < 0.0) {
 		printf("%e %e\n", u.rho(), m[0]);
 		abort();
-	}
+	}*/
 	return u;
 }
 

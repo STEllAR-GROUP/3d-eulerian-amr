@@ -2,6 +2,10 @@
 #define OPTIONS_____H
 
 #define BINARY
+#ifdef GR
+#define LINEARGR
+#include "./GR/gr_defs.h"
+#endif
 
 #ifdef BINARY
 #include "./binary/binary_defs.h"

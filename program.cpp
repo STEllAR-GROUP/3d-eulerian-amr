@@ -1,8 +1,10 @@
+#include "defs.h"
 #include <fenv.h>
 #include <stdio.h>
 #include "program.h"
 #include "binary/binary_driver.h"
 #include "euler/hydro_driver.h"
+#include "GR/gr_driver.h"
 #include <stdlib.h>
 #include <omp.h>
 
@@ -75,6 +77,16 @@ int Program::run(int argc, char* argv[]) {
 		GridNode* root = new GridNode;
 		root->init();
 		HydroDriver* driver = new HydroDriver(root);
+		driver->set_output_frequency_by_time(OUTPUT_TIME_FREQ);
+		driver->set_rk(RK_ORDER);
+		driver->step_to_time(TIME_MAX);
+		delete root;
+#endif
+
+#ifdef GR
+		GridNode* root = new GridNode;
+		root->init();
+		GRDriver* driver = new GRDriver(root);
 		driver->set_output_frequency_by_time(OUTPUT_TIME_FREQ);
 		driver->set_rk(RK_ORDER);
 		driver->step_to_time(TIME_MAX);

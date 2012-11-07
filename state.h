@@ -8,6 +8,10 @@
 #ifndef STATE_H_
 #define STATE_H_
 
+#ifdef GR
+#include "GR/state.h"
+#endif
+
 #ifdef SINGLE
 #include "single/state.h"
 #endif

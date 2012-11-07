@@ -18,12 +18,12 @@ private:
 	Real h;
 	Real time;
 	Vector<int, 3> offset;
-	Array3d<State, GNX, GNX, GNX> U;
 	State FO0;
 	State FO;
 	State DFO;
 	_3Vec origin;
 protected:
+	Array3d<State, GNX, GNX, GNX> U;
 	Real Vxx(int, int, int) const;
 	Real Vyy(int, int, int) const;
 	Real Vzz(int, int, int) const;

@@ -19,6 +19,7 @@ public:
 	}
 	bool operator==(const Vector<T, N>& v) const {
 		bool rc = true;
+
 		for (int i = 0; i < N; i++) {
 			if (v.a[i] != a[i]) {
 				rc = false;
@@ -36,7 +37,7 @@ public:
 	Vector(const T& v) {
 		*this = v;
 	}
-	Vector<T, N>& operator=(const Vector<T, N>& v) {
+	virtual Vector<T, N>& operator=(const Vector<T, N>& v) {
 		for (int i = 0; i < N; i++) {
 			a[i] = v.a[i];
 		}
@@ -59,48 +60,56 @@ public:
 		return *this;
 	}
 	Vector<T, N>& operator/=(const T& t) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] /= t;
 		}
 		return *this;
 	}
 	Vector<T, N>& operator*=(const T& t) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] *= t;
 		}
 		return *this;
 	}
 	Vector<T, N>& operator-=(const T& t) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] -= t;
 		}
 		return *this;
 	}
 	Vector<T, N>& operator+=(const T& t) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] += t;
 		}
 		return *this;
 	}
 	Vector<T, N>& operator+=(const Vector<T, N>& v) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] += v.a[i];
 		}
 		return *this;
 	}
 	Vector<T, N>& operator-=(const Vector<T, N>& v) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] -= v.a[i];
 		}
 		return *this;
 	}
 	Vector<T, N>& operator*=(const Vector<T, N>& v) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] *= v.a[i];
 		}
 		return *this;
 	}
 	Vector<T, N>& operator/=(const Vector<T, N>& v) {
+
 		for (int i = 0; i < N; i++) {
 			a[i] /= v.a[i];
 		}
@@ -147,12 +156,14 @@ public:
 		return a[i];
 	}
 	Vector<T, N>& operator <<=(int i) {
+
 		for (int j = 0; j < N; j++) {
 			a[j] <<= i;
 		}
 		return *this;
 	}
 	Vector<T, N>& operator >>=(int i) {
+
 		for (int j = 0; j < N; j++) {
 			a[j] >>= i;
 		}
@@ -163,6 +174,7 @@ public:
 template<class T, int N>
 inline Vector<T, N> minmod(const Vector<T, N>& v1, const Vector<T, N>& v2) {
 	Vector<T, N> mm;
+
 	for (int i = 0; i < N; i++) {
 		mm[i] = minmod(v1[i], v2[i]);
 	}
@@ -172,6 +184,7 @@ inline Vector<T, N> minmod(const Vector<T, N>& v1, const Vector<T, N>& v2) {
 template<class T, int N>
 inline Vector<T, N> minmod(const Vector<T, N>& v1, const Vector<T, N>& v2, const Vector<T, N>& v3) {
 	Vector<T, N> mm;
+
 	for (int i = 0; i < N; i++) {
 		mm[i] = minmod(v1[i], v2[i], v3[i]);
 	}
@@ -181,6 +194,7 @@ inline Vector<T, N> minmod(const Vector<T, N>& v1, const Vector<T, N>& v2, const
 template<class T, int N>
 inline Vector<T, N> minmod_theta(const Vector<T, N>& v1, const Vector<T, N>& v2, T theta) {
 	Vector<T, N> mm;
+
 	for (int i = 0; i < N; i++) {
 		mm[i] = minmod(theta * v1[i], theta * v2[i], 0.5 * (v1[i] + v2[i]));
 	}
@@ -190,6 +204,7 @@ inline Vector<T, N> minmod_theta(const Vector<T, N>& v1, const Vector<T, N>& v2,
 template<class T, int N>
 Vector<int, N> nint(const Vector<T, N>& a) {
 	Vector<int, N> v;
+
 	for (int i = 0; i < N; i++) {
 		v[i] = nint(a[i]);
 	}

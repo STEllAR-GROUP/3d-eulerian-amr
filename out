@@ -1,0 +1,49 @@
+# On branch master
+# Your branch is ahead of 'origin/master' by 1 commit.
+#
+# Changes not staged for commit:
+#   (use "git add/rm <file>..." to update what will be committed)
+#   (use "git checkout -- <file>..." to discard changes in working directory)
+#
+#	deleted:    GR/gr_driver.o
+#	deleted:    GR/initialize.o
+#	deleted:    GR/state.o
+#	deleted:    README.md
+#	deleted:    amr
+#	deleted:    assert.o
+#	deleted:    binary/binary.o
+#	deleted:    binary/binary_driver.o
+#	deleted:    binary/initialize.o
+#	deleted:    binary/lane_emden.o
+#	deleted:    binary/state.o
+#	deleted:    binary/state_ztwd.o
+#	deleted:    euler/hydro_driver.o
+#	deleted:    euler/initialize.o
+#	deleted:    euler/state.o
+#	deleted:    grid/grid.o
+#	deleted:    grid/grid_amr_bound.o
+#	deleted:    grid/grid_interface.o
+#	deleted:    grid/grid_node.o
+#	deleted:    grid/grid_phys_bound.o
+#	deleted:    gz
+#	deleted:    helmholtz/helmeos.o
+#	deleted:    indexer_2d.o
+#	deleted:    indexer_2d_by2.o
+#	deleted:    main.o
+#	deleted:    oct_node/child_index.o
+#	deleted:    oct_node/oct_face.o
+#	deleted:    oct_node/oct_node.o
+#	modified:   out
+#	deleted:    poisson/poisson.o
+#	deleted:    poisson/poisson_amr_bound.o
+#	deleted:    poisson/poisson_phys_bound.o
+#	deleted:    program.o
+#	deleted:    reconstruct.o
+#
+# Untracked files:
+#   (use "git add <file>..." to include in what will be committed)
+#
+#	.cproject
+#	.project
+#	.settings/
+no changes added to commit (use "git add" and/or "git commit -a")
