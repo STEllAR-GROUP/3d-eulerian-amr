@@ -1,5 +1,3 @@
-
-
 #include "../defs.h"
 
 #ifdef BINARY
@@ -61,7 +59,8 @@ const char* State::field_name(int i) {
 	static char sstr[3];
 	sstr[2] = '\0';
 	sstr[0] = 's';
-	assert(i >= 0);assert(i < STATE_NF);
+	assert(i >= 0);
+	assert(i < STATE_NF);
 	switch (i) {
 	case d_index:
 		return "d_tot";
@@ -267,14 +266,16 @@ Real State::vz(const _3Vec&) const {
 	return sz() / rho();
 }
 
-Vector<Real, STATE_NF> State::internal_energy_source(const _3Vec& X, Real divU) {
+Vector<Real, STATE_NF> State::internal_energy_source(const _3Vec& X,
+		Real divU) {
 	Vector<Real, STATE_NF> s = 0.0;
 //	printf( "%e\n", divU );
 	s[tau_index] = -compute_eos(X).p * divU;
 	return s;
 }
 
-Vector<Real, STATE_NF> State::gravity_source(const _3Vec& g, Vector<Real, STATE_NF>& D, const _3Vec& X) const {
+Vector<Real, STATE_NF> State::gravity_source(const _3Vec& g,
+		Vector<Real, STATE_NF>& D, const _3Vec& X) const {
 	State s = Vector<Real, STATE_NF>(0.0);
 	const Real d = rho();
 	s[sr_index] += d * (X[0] * g[0] + X[1] * g[1]) / R(X);
@@ -437,7 +438,8 @@ void State::enforce_outflow(const _3Vec& X, const OctFace& f) {
 		}
 		break;
 	}
-	(*this)[et_index] += 0.5 * (sr() * sr() + st(X) * st(X) + sz() * sz()) / rho();
+	(*this)[et_index] += 0.5 * (sr() * sr() + st(X) * st(X) + sz() * sz())
+			/ rho();
 }
 
 void State::adjust_rho_fluxes() {
@@ -486,19 +488,37 @@ void State::floor(const _3Vec& X) {
 		for (int i = 1; i < NSPECIES; i++) {
 			(*this)[specie_index + i] = 0.0;
 		}
+	} else {
+		for (int i = 0; i < NSPECIES; i++) {
+			(*this)[specie_index + i] = max(specie_rho(i), 0.0);
+		}
+		(*this)[d_don_index] = max(rho_donor(), rho_floor / 2.0);
+		(*this)[d_acc_index] = max(rho_accretor(), rho_floor / 2.0);
 	}
-	/*	Real sum;
-	 for (int i = 0; i < NSPECIES; i++) {
-	 if (specie_rho(i) < 0.0) {
-	 (*this)[specie_index + i] = 0.0;
-	 }
-	 sum += specie_rho(i);
-	 }
-	 if (sum != 0.0) {
-	 for (int i = 0; i < NSPECIES; i++) {
-	 (*this)[specie_index + i] *= rho() / sum;
-	 }
-	 }*/
+	Real sum = 0.0;
+	for (int i = 0; i < NSPECIES; i++) {
+		sum += specie_rho(i);
+	}
+	if (sum != 0.0) {
+		for (int i = 0; i < NSPECIES; i++) {
+			(*this)[specie_index + i] *= rho() / sum;
+		}
+	} else {
+		(*this)[specie_index] = rho();
+		for (int i = 1; i < NSPECIES; i++) {
+			(*this)[specie_index + i] = 0.0;
+		}
+	}
+	sum = 0.0;
+	sum += rho_donor();
+	sum += rho_accretor();
+	if (sum != 0.0) {
+		(*this)[d_don_index] *= rho() / sum;
+		(*this)[d_acc_index] *= rho() / sum;
+	} else {
+		(*this)[d_don_index] = rho() / 2.0;
+		(*this)[d_acc_index] = rho() / 2.0;
+	}
 #ifndef SCF_CODE
 	Real u, d;
 	d = rho();
@@ -544,10 +564,7 @@ void State::to_con(const _3Vec& x) {
 	(*this)[lz_index] += Binary::Omega * R(x);
 	(*this)[lz_index] *= rho() * R(x);
 	(*this)[et_index] += ek(x);
-#ifndef ZTWD
-	(*this)[tau_index] = pow((*this)[tau_index], 1.0 / gamma);
-#else
-	double sum;
+	Real sum;
 	sum = 0.0;
 	for (int i = 0; i < NSPECIES; i++) {
 		sum += (*this)[specie_index + i];
@@ -565,20 +582,14 @@ void State::to_con(const _3Vec& x) {
 	}
 	(*this)[d_don_index] *= rho();
 	(*this)[d_acc_index] *= rho();
-#endif
 }
 
 void State::to_prim(const _3Vec& x) {
-#ifndef ZTWD
-	(*this)[tau_index] = pow((*this)[tau_index], gamma);
-#else
 	for (int i = 0; i < NSPECIES; i++) {
 		(*this)[specie_index + i] /= rho();
 	}
 	(*this)[d_don_index] /= rho();
 	(*this)[d_acc_index] /= rho();
-
-#endif
 	(*this)[et_index] -= ek(x);
 	(*this)[sr_index] /= rho();
 	(*this)[lz_index] /= rho() * R(x);
@@ -587,14 +598,8 @@ void State::to_prim(const _3Vec& x) {
 	(*this)[pot_index] /= rho();
 }
 
-
-
-
 #endif
 
-
 #else
-
-
 
 #endif

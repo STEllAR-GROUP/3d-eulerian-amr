@@ -1,7 +1,7 @@
 #ifndef OPTIONS_SCF_
 #define OPTIONS_SCF_
 #include "../real.h"
-#define SCF_CODE
+//#define SCF_CODE
 #define ZTWD
 
 #define CENTER_OF_MASS_CORRECTION
